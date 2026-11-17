@@ -34,16 +34,17 @@ pub struct Game {
     pub pets:Vec<PetKind>, pub equipped_pet:Option<usize>, pub hatch:Option<Hatch>, pub pets_open:bool,
     pub equipped_pets:Vec<usize>, pub auto_attack:bool, pub attack_clock:f64, pub auto_hits:u64,
     pub grid_size:usize, pub selected_switch:usize, pub switches:Vec<bool>,
+    pub interface_open:bool,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:8,selected_switch:0,switches:vec![false;1024],
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
     pub fn tap(&mut self) {
-        if self.paused||self.hatch.is_some()||self.pets_open||!self.switch_unlocked(self.selected_switch) { return; }
+        if self.paused||self.hatch.is_some()||self.pets_open||self.interface_open||!self.switch_unlocked(self.selected_switch) { return; }
         self.multiplier=self.multiplier.saturating_add(1); self.taps=self.taps.saturating_add(1);
         self.switches[self.selected_switch]=!self.switches[self.selected_switch];
     }
@@ -54,7 +55,7 @@ impl Game {
         self.grid_size=size;if self.selected_switch>=size*size {self.selected_switch=0;self.attack_clock=0.0;} true
     }
     pub fn tap_switch(&mut self,index:usize)->bool {
-        if self.paused||self.pets_open||self.hatch.is_some()||!self.switch_unlocked(index) {return false;}
+        if self.paused||self.pets_open||self.interface_open||self.hatch.is_some()||!self.switch_unlocked(index) {return false;}
         if self.selected_switch!=index {self.selected_switch=index;self.attack_clock=0.0;}
         self.tap();true
     }
@@ -88,7 +89,7 @@ impl Game {
         1.0+self.equipped_pets.iter().filter_map(|&i|self.pets.get(i)).map(|p|p.bonus()-1.0).sum::<f64>()
     }
     pub fn attack_running(&self)->bool {
-        self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)
+        self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.interface_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)
     }
     pub fn toggle_auto_attack(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.pets_open||self.equipped_pets.is_empty() { return false; }
@@ -136,6 +137,38 @@ impl Game {
         let Some(slot)=self.equipped_pets.iter().position(|&i|i==index) else { return false; };
         self.equipped_pets.remove(slot);self.equipped_pet=self.equipped_pets.first().copied();
         self.attack_clock=0.0;if self.equipped_pets.is_empty() { self.auto_attack=false; } true
+    }
+    pub fn delete_pet(&mut self,index:usize)->bool {
+        if self.paused||self.hatch.is_some()||index>=self.pets.len() {return false;}
+        self.pets.remove(index);
+        self.equipped_pets.retain(|&i|i!=index);
+        for i in &mut self.equipped_pets {if *i>index {*i-=1;}}
+        self.equipped_pet=self.equipped_pets.first().copied();self.attack_clock=0.0;
+        if self.equipped_pets.is_empty() {self.auto_attack=false;}
+        true
+    }
+    pub fn craft_result(kind:PetKind)->Option<PetKind> {
+        match kind {PetKind::Cat|PetKind::Dog=>Some(PetKind::Bunny),PetKind::Bunny=>Some(PetKind::Fox),PetKind::Fox=>Some(PetKind::Dragon),PetKind::Dragon=>Some(PetKind::Unicorn),PetKind::Unicorn=>None}
+    }
+    pub fn craft_materials(&self,index:usize)->Option<Vec<usize>> {
+        let kind=*self.pets.get(index)?;Self::craft_result(kind)?;
+        let mut materials=vec![index];
+        for (i,&pet) in self.pets.iter().enumerate() {if i!=index&&pet==kind {materials.push(i);if materials.len()==3 {return Some(materials);}}}
+        None
+    }
+    pub fn craft_pet(&mut self,index:usize)->Option<usize> {
+        if self.paused||self.hatch.is_some() {return None;}
+        let result=Self::craft_result(*self.pets.get(index)?)?;
+        let mut materials=self.craft_materials(index)?;
+        let equipped=materials.iter().any(|i|self.equipped_pets.contains(i));let auto=self.auto_attack;
+        materials.sort_unstable_by(|a,b|b.cmp(a));
+        for i in materials {self.delete_pet(i);}
+        let index=self.pets.len();self.pets.push(result);
+        if equipped {self.equip_pet(index);self.auto_attack=auto;}
+        Some(index)
+    }
+    pub fn switch_rarity(index:usize)->&'static str {
+        match index {0..=4=>"Старт",5..=31=>"Обычн.",32..=127=>"Редкая",128..=511=>"Эпик",_=>"Легенд."}
     }
     pub fn finish_hatch(&mut self,equip:bool)->bool {
         let Some(h)=&self.hatch else { return false; };
@@ -187,6 +220,7 @@ impl Game {
             g.switches=states.bytes().map(|b|b==b'1').collect();
             if !g.switch_unlocked(g.selected_switch) {g.selected_switch=0;}
         }
+        g.grid_size=32;
         Some(g)
     }
 }
@@ -277,5 +311,21 @@ mod tests {
         g.set_grid_size(32);let restored=Game::from_save(&g.save_text()).unwrap();
         assert_eq!(restored.grid_size,32);assert_eq!(restored.selected_switch,3);assert_eq!(restored.switches,g.switches);
         assert!(!g.set_grid_size(16));
+    }
+
+    #[test] fn deleting_pet_remaps_equipped_indices() {
+        let mut g=Game::default();g.pets=vec![PetKind::Cat,PetKind::Dog,PetKind::Fox];g.equip_pet(1);g.equip_pet(2);g.toggle_auto_attack();
+        assert!(g.delete_pet(0));assert_eq!(g.pets,vec![PetKind::Dog,PetKind::Fox]);assert_eq!(g.equipped_pets,vec![0,1]);assert!(g.auto_attack);
+        g.delete_pet(0);g.delete_pet(0);assert!(!g.auto_attack);assert!(g.equipped_pets.is_empty());assert!(!g.delete_pet(0));
+    }
+    #[test] fn craft_consumes_three_identical_pets_and_preserves_other_team_members() {
+        let mut g=Game::default();g.pets=vec![PetKind::Cat,PetKind::Dog,PetKind::Cat,PetKind::Cat];g.equip_pet(0);g.equip_pet(1);g.toggle_auto_attack();
+        let index=g.craft_pet(2).unwrap();assert_eq!(g.pets,vec![PetKind::Dog,PetKind::Bunny]);assert_eq!(index,1);assert_eq!(g.equipped_pets,vec![0,1]);assert!(g.auto_attack);
+        let restored=Game::from_save(&g.save_text()).unwrap();assert_eq!(restored.pets,g.pets);assert_eq!(restored.equipped_pets,g.equipped_pets);
+    }
+    #[test] fn invalid_craft_and_paused_deletion_leave_inventory_intact() {
+        let mut g=Game::default();g.pets=vec![PetKind::Cat,PetKind::Cat,PetKind::Unicorn];let before=g.pets.clone();
+        assert!(g.craft_pet(0).is_none());assert!(g.craft_pet(2).is_none());assert_eq!(g.pets,before);
+        g.paused=true;assert!(!g.delete_pet(0));assert!(g.craft_pet(0).is_none());assert_eq!(g.pets,before);
     }
 }

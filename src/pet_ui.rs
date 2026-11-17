@@ -27,40 +27,6 @@ pub fn shop(ui:&mut egui::Ui,game:&mut Game) {
 }
 pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let screen=ctx.screen_rect();
-    if game.pets_open {
-        let mut open=true;
-        let rect=Rect::from_min_max(screen.left_top()+vec2(16.0,118.0),screen.right_bottom()-vec2(16.0,10.0));
-        egui::Window::new(format!("Питомцы · {}",game.pets.len())).open(&mut open).fixed_rect(rect).collapsible(false).resizable(false).show(ctx,|ui| {
-            ui.add_enabled_ui(!game.paused,|ui| {
-                ui.label(T::new(format!("Команда {}/3 · доход ×{:.1}",game.equipped_pets.len(),game.pet_bonus())).color(INK));
-                if game.pets.is_empty() {
-                    ui.label("Коллекция пока пуста");
-                    if ui.button("К капсулам").clicked() {game.tab=crate::game::Tab::Capsules;game.pets_open=false;}
-                } else {
-                    let pets=game.pets.clone();let columns=if screen.width()>700.0 {4} else {2};
-                    egui::ScrollArea::vertical().id_salt("pet_inventory").show(ui,|ui| {
-                        for row in (0..pets.len()).step_by(columns) {
-                            ui.columns(columns,|cols| {for (col,column) in cols.iter_mut().enumerate() {
-                                let index=row+col;if index>=pets.len() {continue;}let pet=pets[index];
-                                egui::Frame::none().fill(C::from_rgb(230,235,207)).inner_margin(egui::Margin::same(6.0)).show(column,|ui| {
-                                    ui.vertical_centered(|ui| {
-                                        let size=ui.available_width().min(88.0);
-                                        let (r,_)=ui.allocate_exact_size(vec2(size,size),Sense::hover());
-                                        pet_render::pet(ui.painter(),r,pet,game.played_seconds as f32);
-                                        ui.label(T::new(pet.name()).strong().color(INK));
-                                        ui.label(T::new(format!("{} · ×{:.1}",pet.rarity(),pet.bonus())).size(10.0).color(INK));
-                                        let active=game.equipped_pets.contains(&index);
-                                        let label=if active {"Снять"} else if game.equipped_pets.len()==3 {"Заменить 3-го"} else {"Применить"};
-                                        if ui.button(label).clicked() {if active {game.unequip_pet(index);} else {game.equip_pet(index);}}
-                                    });
-                                });
-                            }});ui.add_space(6.0);
-                        }
-                    });
-                }
-            });
-        });if !open {game.pets_open=false;}
-    }
     if let Some(hatch)=game.hatch.clone() {
         let elapsed=hatch.elapsed as f32;let reveal=elapsed>=3.0;let pet=game.pets[hatch.inventory_index];
         egui::Window::new("Открытие капсулы").id(egui::Id::new("hatch_overlay")).title_bar(false)
