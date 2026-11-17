@@ -1,6 +1,6 @@
 # Button Sim
 
-Portrait Android clicker with a scrollable currency header, a bottom dock with pill-shaped navigation buttons, and a vertical field of 3D switches.
+Portrait Android clicker with a scrollable currency header, a centered bottom dock with navigation tiles, and a vertical field of 3D switches.
 
 Download **button-sim-release.apk** from [latest-apk](https://github.com/dozyFJ/Button-sim/releases/tag/latest-apk).
 Install the native OTA shell once, then use **Pause → Обновить игру (OTA)** to download compatible game cores and restart.
