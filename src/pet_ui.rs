@@ -4,7 +4,7 @@ const GREEN:C=C::from_rgb(93,161,71);
 fn egg_card(ui: &mut egui::Ui, game: &mut Game, egg: Capsule) {
     let width = ui.available_width();
     let dark = ui.visuals().dark_mode;
-    egui::Frame::none().fill(crate::theme_color(dark, [249,241,214], [33,44,81]))
+    egui::Frame::none().fill(crate::theme_color(dark, [249,241,214], [27,49,91]))
         .stroke(Stroke::new(1.0_f32, crate::theme_color(dark, [201,190,151], [81,103,156])))
         .rounding(10.0).inner_margin(egui::Margin::same(6.0)).show(ui, |ui| {
         ui.set_width((width - 12.0).max(0.0));
@@ -95,7 +95,7 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let Some(hatch)=game.hatch.clone() else {return;};
     let elapsed=hatch.elapsed as f32;let reveal=elapsed>=3.0;
     let Some(&pet)=game.pets.get(hatch.inventory_index) else {return;};
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(crate::theme_color(game.dark_mode, [166,207,224], [14,15,29]))).show(ctx,|ui| {
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(crate::theme_color(game.dark_mode, [166,207,224], [10,20,39]))).show(ctx,|ui| {
         let width=ui.available_width();let height=ui.available_height();
         let model_size=(height-160.0).min(width*0.44).clamp(72.0,270.0);
         let content_height=model_size+if reveal {156.0} else {128.0};
@@ -190,7 +190,7 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
                 let (rect,response)=ui.allocate_exact_size(vec2(56.0,30.0),Sense::click());
                 let t=ctx.animate_bool(response.id,game.auto_attack);
                 if ui.visuals().dark_mode {
-                    let tint = if game.auto_attack { C::from_rgb(23,120,122) } else { C::from_rgb(44,56,96) };
+                    let tint = if game.auto_attack { C::from_rgb(153,70,23) } else { C::from_rgb(44,56,96) };
                     crate::paint_dark_glass(ui.painter(), rect, 15.0, tint);
                 } else {
                     ui.painter().rect_filled(rect,15.0,if game.auto_attack {GREEN} else {C::from_rgb(155,165,151)});

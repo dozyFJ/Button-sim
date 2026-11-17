@@ -18,8 +18,8 @@ pub fn heading(ui:&mut egui::Ui,title:&str)->bool {
     let mut close=false;ui.horizontal(|ui| {ui.label(T::new(title).size(19.0).strong());ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui| {close=ui.button("X").clicked();});});ui.separator();close
 }
 fn card(ui:&mut egui::Ui,title:&str,value:&str) {
-    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [231,235,207], [43,39,72])).inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
-        ui.set_min_width((ui.available_width()-2.0).max(50.0));ui.label(T::new(title).size(11.0).color(crate::theme_color(ui.visuals().dark_mode, [92,109,77], [193,181,226])));ui.label(T::new(value).size(18.0).strong());
+    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [231,235,207], [27,47,86])).inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
+        ui.set_min_width((ui.available_width()-2.0).max(50.0));ui.label(T::new(title).size(11.0).color(crate::theme_color(ui.visuals().dark_mode, [92,109,77], [185,205,239])));ui.label(T::new(value).size(18.0).strong());
     });ui.add_space(5.0);
 }
 pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState) {
@@ -81,7 +81,7 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
                 } else if modal==Modal::Upgrades {
                     for step in 0..4 {
                         let level=game.upgrades+step;
-                        egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [231,235,207], [43,39,72])).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
+                        egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [231,235,207], [27,47,86])).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
                             ui.set_min_width((ui.available_width()-2.0).max(120.0));ui.label(T::new(format!("Доход · уровень {}",level+1)).strong());
                             ui.label(format!("Базовый доход {} / сек → {} / сек",amount(game.base_income+step as f64),amount(game.base_income+step as f64+1.0)));
                             let cost=50.0*2.0_f64.powi(level.min(30) as i32);

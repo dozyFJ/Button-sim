@@ -18,7 +18,7 @@ fn tile(ui: &mut egui::Ui, width: f32, label: &str, icon: usize, active: bool) -
     let (rect, response) = ui.allocate_exact_size(vec2(width, TILE), Sense::click());
     let painter = ui.painter();
     if dark {
-        let tint = if active { C::from_rgb(62,59,158) } else if response.hovered() { C::from_rgb(48,66,118) } else { C::from_rgb(31,43,83) };
+        let tint = if active { C::from_rgb(156,70,21) } else if response.hovered() { C::from_rgb(42,74,130) } else { C::from_rgb(28,49,91) };
         crate::paint_dark_glass(painter, rect, 9.0, tint);
     } else if !active {
         let fill = if response.hovered() { C::from_rgb(231,240,246) } else { C::from_rgb(241,245,248) };
@@ -78,7 +78,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             let font_size = 19.0 * ((width - 16.0).max(0.0) / measured.size().x).min(1.0);
             let balance = Rect::from_min_size(pos2(balance_left, profile.rect.top()), vec2(width, 34.0));
             if ui.visuals().dark_mode {
-                crate::paint_dark_glass(painter, balance, 8.0, C::from_rgb(42,48,102));
+                crate::paint_dark_glass(painter, balance, 8.0, C::from_rgb(32,57,106));
             } else {
                 painter.rect_filled(balance, 8.0, C::from_rgb(230,233,207));
             }
@@ -105,7 +105,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         let dark = ui.visuals().dark_mode;
         let strip = Rect::from_min_size(dock.min, vec2(dock.width(), DOCK_ROW));
         let fill = ui.visuals().panel_fill;
-        ui.painter().rect_filled(dock, 0.0, crate::theme_color(dark, [213,223,186], [14,15,29]));
+        ui.painter().rect_filled(dock, 0.0, crate::theme_color(dark, [213,223,186], [10,20,39]));
         if dark {
             crate::paint_dark_glass(ui.painter(), strip, 0.0, fill);
         } else {
@@ -190,7 +190,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         }
         let filled = Rect::from_min_size(track.min, vec2(track.width() * game.level_progress(), track.height()));
         if filled.width() > 0.0 {
-            painter.rect_filled(filled, 8.0, crate::theme_color(dark, [27,99,137], [52,71,166]));
+            painter.rect_filled(filled, 8.0, crate::theme_color(dark, [27,99,137], [170,78,25]));
         }
         let shine = Rect::from_min_size(track.min + vec2(2.0, 2.0), vec2((track.width() - 4.0).max(0.0), track.height() * 0.43));
         painter.rect_filled(shine, 7.0, C::from_white_alpha(37));

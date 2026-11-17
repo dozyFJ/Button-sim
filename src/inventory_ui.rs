@@ -115,7 +115,7 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
     let xp = game.pet_xp(index);
     let painter = ui.painter().with_clip_rect(right);
     let dark = ui.visuals().dark_mode;
-    painter.rect_filled(track, 6.0, crate::theme_color(dark, [215,220,199], [59,55,96]));
+    painter.rect_filled(track, 6.0, crate::theme_color(dark, [215,220,199], [36,60,105]));
     let fill = Rect::from_min_size(track.min, vec2(track.width() * (xp % 100) as f32 / 100.0, track.height()));
     if fill.width() > 0.0 { painter.rect_filled(fill, 6.0, ui.visuals().selection.bg_fill); }
     painter.text(track.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER,
@@ -172,9 +172,9 @@ fn grid(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState) {
                     let marked = state.pet_marked.contains(&index);
                     let selected = if state.pet_multi_delete { marked } else { state.selected_pet == Some(index) };
                     let dark = ui.visuals().dark_mode;
-                    p.rect_filled(rect, 5.0, crate::theme_color(dark, [230,235,207], [43,39,72]));
+                    p.rect_filled(rect, 5.0, crate::theme_color(dark, [230,235,207], [27,47,86]));
                     p.rect_stroke(rect, 5.0, Stroke::new(if selected { 2.0 } else { 1.0 },
-                        if selected { C::from_rgb(221,166,52) } else { crate::theme_color(dark, [153,173,117], [105,91,162]) }));
+                        if selected { C::from_rgb(221,166,52) } else { crate::theme_color(dark, [153,173,117], [88,123,181]) }));
                     pet_render::pet(p, Rect::from_min_max(rect.min + vec2(5.0,3.0), rect.max - vec2(5.0,30.0)), pet, game.played_seconds as f32);
                     let ink = ui.visuals().text_color();
                     let number = if marked { format!("✓ {}", index + 1) } else { (index + 1).to_string() };

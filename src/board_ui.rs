@@ -3,10 +3,10 @@ use egui::{Color32 as C,Rect,Stroke,Sense,Shape,pos2,vec2};
 use crate::{amount, game::{Game, Tab}};
 fn draw_floor(ui: &egui::Ui, view: Rect, dark: bool) {
     let painter = ui.painter().with_clip_rect(view);
-    let base = crate::theme_color(dark, [119,159,85], [24,26,46]);
-    let grid = crate::theme_color(dark, [102,140,75], [33,36,65]);
-    let stud_top = crate::theme_color(dark, [143,181,108], [53,55,94]);
-    let stud_side = crate::theme_color(dark, [92,128,64], [16,18,37]);
+    let base = crate::theme_color(dark, [119,159,85], [16,29,53]);
+    let grid = crate::theme_color(dark, [102,140,75], [25,44,76]);
+    let stud_top = crate::theme_color(dark, [143,181,108], [42,66,111]);
+    let stud_side = crate::theme_color(dark, [92,128,64], [9,19,36]);
     painter.rect_filled(view, 0.0, base);
 
     let tile = 22.0;
@@ -70,20 +70,20 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 ));
                 p.add(Shape::convex_polygon(
                     vec![face[1], face[2], face[2] + depth, face[1] + depth],
-                    crate::theme_color(dark, [150,132,90], [49,43,94]),
+                    crate::theme_color(dark, [150,132,90], [31,51,90]),
                     Stroke::NONE,
                 ));
                 let fill = if !unlocked {
                     crate::theme_color(dark, [157,160,163], [53,55,63])
                 } else if active {
-                    crate::theme_color(dark, [140,191,105], [29,110,105])
+                    crate::theme_color(dark, [140,191,105], [133,64,22])
                 } else {
-                    crate::theme_color(dark, [231,190,119], [61,48,110])
+                    crate::theme_color(dark, [231,190,119], [36,63,115])
                 };
                 let border = if !unlocked {
                     crate::theme_color(dark, [105,108,112], [112,115,123])
                 } else if selected { C::from_rgb(230,148,36) } else {
-                    crate::theme_color(dark, [104,119,76], [124,111,183])
+                    crate::theme_color(dark, [104,119,76], [104,138,199])
                 };
                 p.add(Shape::convex_polygon(face.to_vec(), fill, Stroke::new(if selected { 3.0 } else { 1.0 }, border)));
                 if dark && unlocked {
@@ -97,7 +97,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 for (y, width) in [(0.0, 13.0), (3.0, 7.0), (6.0, 3.0)] {
                     p.rect_filled(Rect::from_min_size(face[0] + vec2(5.0, 5.0 + y), vec2(width, 3.0)), 0.0, highlight);
                 }
-                let ink = if unlocked { crate::theme_color(dark, [45,62,38], [247,243,255]) } else { crate::theme_color(dark, [38,41,45], [231,232,238]) };
+                let ink = if unlocked { crate::theme_color(dark, [45,62,38], [241,247,255]) } else { crate::theme_color(dark, [38,41,45], [231,232,238]) };
                 if rebirths {
                     let price = Game::rebirth_price_at(index as u32);
                     let max_hp = Game::rebirth_tile_max_hp(index as u32);
