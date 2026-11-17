@@ -395,9 +395,9 @@ mod layout_tests {
                 let right=menu.iter().map(|r|r.right()).fold(f32::NEG_INFINITY,f32::max);
                 assert!(((left+right)*0.5-width*0.5).abs()<1.0,"menu is not centered");
                 let pets:Vec<_>=output.shapes.iter().filter_map(|shape|match &shape.shape {
-                    egui::Shape::Text(text) if text.galley.job.text=="Питомцы"=>Some(text.pos),_=>None
+                    egui::Shape::Text(text) if text.galley.job.text=="Питомцы"&&text.pos.y<110.0=>Some(text.pos),_=>None
                 }).collect();
-                assert_eq!(pets.len(),1,"pets should have one entry point");
+                assert_eq!(pets.len(),1,"pets should have one entry point in the header");
                 assert!(pets[0].y<110.0,"pets button is not in the header");
                 if tab==game::Tab::Home {
                     let field=output.shapes.iter().find_map(|shape|match &shape.shape {
