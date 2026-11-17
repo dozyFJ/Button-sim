@@ -28,13 +28,57 @@ fn amount(n: f64) -> String {
     else { format!("{:.0}", n.floor()) }
 }
 
+fn aero_card(p: &egui::Painter, r: egui::Rect, accent: egui::Color32) {
+    use egui::{Color32 as C, Stroke, Rect, vec2};
+    for (spread, alpha) in [(6.0, 10), (3.0, 22), (1.0, 40)] {
+        p.rect_stroke(r.expand(spread), 16.0 + spread, Stroke::new(2.0, C::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), alpha)));
+    }
+    p.rect_filled(r, 16.0, C::from_rgba_unmultiplied(35, 63, 104, 210));
+    let shine = Rect::from_min_max(r.min + vec2(2.0, 2.0), egui::pos2(r.right() - 2.0, r.center().y));
+    p.rect_filled(shine, 14.0, C::from_rgba_unmultiplied(172, 223, 255, 20));
+    p.rect_stroke(r, 16.0, Stroke::new(1.0, accent.gamma_multiply(0.7)));
+    p.line_segment([r.left_top() + vec2(16.0, 2.0), r.right_top() + vec2(-16.0, 2.0)], Stroke::new(1.0, C::from_rgba_unmultiplied(227, 250, 255, 130)));
+}
+
+fn nav_icon(p: &egui::Painter, center: egui::Pos2, index: usize, color: egui::Color32) {
+    use egui::{vec2, Rect, Stroke};
+    let s = Stroke::new(2.0, color);
+    match index {
+        0 => {
+            p.line_segment([center + vec2(-11.0, -1.0), center + vec2(0.0, -11.0)], s);
+            p.line_segment([center + vec2(0.0, -11.0), center + vec2(11.0, -1.0)], s);
+            p.rect_stroke(Rect::from_center_size(center + vec2(0.0, 4.0), vec2(15.0, 14.0)), 2.0, s);
+        }
+        1 => {
+            p.rect_stroke(Rect::from_center_size(center, vec2(17.0, 25.0)), 8.0, s);
+            p.line_segment([center + vec2(-8.0, 0.0), center + vec2(8.0, 0.0)], s);
+            p.circle_filled(center, 3.0, color);
+        }
+        2 => {
+            p.line_segment([center + vec2(0.0, 11.0), center + vec2(0.0, -10.0)], s);
+            p.line_segment([center + vec2(-8.0, -2.0), center + vec2(0.0, -10.0)], s);
+            p.line_segment([center + vec2(8.0, -2.0), center + vec2(0.0, -10.0)], s);
+        }
+        3 => {
+            for (x, h) in [(-8.0, 9.0), (0.0, 16.0), (8.0, 23.0)] {
+                p.rect_filled(Rect::from_min_size(center + vec2(x - 2.0, 11.0 - h), vec2(4.0, h)), 1.0, color);
+            }
+        }
+        _ => {
+            p.circle_stroke(center, 10.0, s);
+            p.line_segment([center + vec2(10.0, -10.0), center + vec2(10.0, 0.0)], s);
+            p.line_segment([center + vec2(10.0, 0.0), center + vec2(0.0, 0.0)], s);
+        }
+    }
+}
+
 fn ui(ctx: &egui::Context, game: &mut game::Game) {
     use egui::{Color32 as C, RichText as T, Stroke, pos2, vec2, Rect, Align2, FontId, Sense};
-    let navy = C::from_rgb(17, 29, 54);
-    let panel = C::from_rgb(26, 43, 73);
-    let gold = C::from_rgb(255, 206, 100);
-    let muted = C::from_rgb(155, 176, 205);
-    let green = C::from_rgb(99, 231, 184);
+    let navy = C::from_rgb(9, 14, 33);
+    let panel = C::from_rgba_unmultiplied(30, 53, 87, 220);
+    let gold = C::from_rgb(99, 241, 255);
+    let muted = C::from_rgb(161, 190, 220);
+    let green = C::from_rgb(133, 255, 209);
     let width = ctx.screen_rect().width();
     let was_paused = game.paused;
     egui::TopBottomPanel::top("profile_header")
@@ -43,7 +87,10 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
             let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 108.0), Sense::hover());
             let p = ui.painter();
             let avatar = pos2(r.left() + 42.0, r.top() + 24.0);
-            p.circle_filled(avatar, 22.0, C::from_rgb(56, 88, 130));
+            for radius in [29.0, 26.0, 23.0] {
+                p.circle_stroke(avatar, radius, Stroke::new(2.0, C::from_rgba_unmultiplied(80, 225, 255, 25)));
+            }
+            p.circle_filled(avatar, 22.0, C::from_rgb(39, 71, 119));
             p.circle_stroke(avatar, 22.0, Stroke::new(2.0, gold));
             p.circle_filled(avatar + vec2(0.0, -5.0), 7.0, C::from_rgb(217, 232, 249));
             p.rect_filled(Rect::from_center_size(avatar + vec2(0.0, 10.0), vec2(23.0, 12.0)), 6.0, C::from_rgb(217, 232, 249));
@@ -55,15 +102,14 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
             }
             p.text(pos2(r.left() + 42.0, r.top() + 97.0), Align2::CENTER_CENTER, format!("Ур. {} · {}/100", game.level(), game.taps % 100), FontId::proportional(10.0), muted);
             let card = Rect::from_min_max(pos2(r.left() + 98.0, r.top() + 8.0), pos2(r.right() - 53.0, r.top() + 99.0));
-            p.rect_filled(card, 15.0, panel);
-            p.rect_stroke(card, 15.0, Stroke::new(1.0, C::from_rgb(57, 78, 108)));
+            aero_card(p, card, gold);
             p.text(pos2(card.center().x, card.top() + 17.0), Align2::CENTER_CENTER, "МОНЕТЫ", FontId::proportional(11.0), gold);
             p.text(card.center() - vec2(0.0, 1.0), Align2::CENTER_CENTER, amount(game.coins), FontId::proportional(24.0), C::WHITE);
             p.text(pos2(card.center().x, card.bottom() - 23.0), Align2::CENTER_CENTER, format!("+{} / сек", amount(game.coins_per_second())), FontId::proportional(12.0), green);
             // Only coins exist in the economy. The single page indicator reflects that.
             p.circle_filled(pos2(card.center().x, card.bottom() - 9.0), 2.5, gold);
             let pause = Rect::from_min_size(pos2(r.right() - 42.0, r.top() + 10.0), vec2(42.0, 42.0));
-            p.rect_filled(pause, 12.0, panel);
+            aero_card(p, pause, C::from_rgb(192, 138, 255));
             for x in [-5.0, 5.0] {
                 p.rect_filled(Rect::from_center_size(pause.center() + vec2(x, 0.0), vec2(4.0, 16.0)), 1.0, gold);
             }
@@ -76,20 +122,20 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
             ui.add_enabled_ui(!was_paused && !game.paused, |ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 ui.columns(5, |cols| {
-                    for (i, (label, tab, icon)) in [
-                        ("Главная", game::Tab::Home, "H"),
-                        ("Капсулы", game::Tab::Capsules, "C"),
-                        ("Улучшения", game::Tab::Upgrades, "+"),
-                        ("Статистика", game::Tab::Statistics, "="),
-                        ("Ребёрты", game::Tab::Rebirths, "R"),
+                    for (i, (label, tab)) in [
+                        ("Главная", game::Tab::Home),
+                        ("Капсулы", game::Tab::Capsules),
+                        ("Улучшения", game::Tab::Upgrades),
+                        ("Статистика", game::Tab::Statistics),
+                        ("Ребёрты", game::Tab::Rebirths),
                     ].into_iter().enumerate() {
                         let col = &mut cols[i];
                         let (rect, response) = col.allocate_exact_size(vec2(col.available_width(), 68.0), Sense::click());
                         let active = game.tab == tab;
                         let p = col.painter();
-                        p.rect_filled(rect, 12.0, if active { C::from_rgb(50, 71, 100) } else { panel });
+                        aero_card(p, rect.shrink(2.0), if active { gold } else { C::from_rgb(65, 87, 130) });
                         if active { p.rect_filled(Rect::from_min_size(rect.min + vec2(12.0, 0.0), vec2((rect.width() - 24.0).max(4.0), 3.0)), 2.0, gold); }
-                        p.text(rect.center() - vec2(0.0, 10.0), Align2::CENTER_CENTER, icon, FontId::proportional(24.0), if active { gold } else { muted });
+                        nav_icon(p, rect.center() - vec2(0.0, 10.0), i, if active { gold } else { muted });
                         p.text(pos2(rect.center().x, rect.bottom() - 15.0), Align2::CENTER_CENTER, label, FontId::proportional(if width < 370.0 { 9.0 } else { 11.0 }), if active { C::WHITE } else { muted });
                         if response.clicked() { game.tab = tab; }
                     }
@@ -97,8 +143,22 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
             });
         });
 
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(C::from_rgb(22, 39, 64)).inner_margin(egui::Margin::same(18.0)))
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(C::from_rgb(10, 17, 38)).inner_margin(egui::Margin::same(18.0)))
         .show(ctx, |ui| {
+            let scene = ui.max_rect();
+            let p = ui.painter();
+            for (center, color) in [
+                (scene.left_top() + vec2(15.0, 130.0), C::from_rgb(31, 143, 235)),
+                (scene.right_bottom() - vec2(15.0, 130.0), C::from_rgb(168, 44, 230)),
+            ] {
+                for radius in [180.0, 140.0, 100.0, 60.0] {
+                    p.circle_filled(center, radius, C::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 8));
+                }
+            }
+            for row in 0..12 {
+                let y = scene.bottom() - row as f32 * 28.0;
+                p.line_segment([pos2(scene.left(), y), pos2(scene.right(), y)], Stroke::new(1.0, C::from_rgba_unmultiplied(88, 169, 255, 12)));
+            }
             ui.visuals_mut().override_text_color = Some(C::WHITE);
             ui.add_enabled_ui(!was_paused && !game.paused, |ui| {
                 egui::ScrollArea::vertical().id_salt("scene_scroll").show(ui, |ui| {
@@ -118,11 +178,16 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                 let pressed = response.is_pointer_button_down_on();
                                 let top = center + vec2(0.0, if pressed { 10.0 } else { 0.0 });
                                 let p = ui.painter();
-                                p.circle_filled(center + vec2(0.0, 22.0), size * 0.49, C::from_rgb(10, 21, 37));
-                                p.circle_filled(center + vec2(0.0, 9.0), size * 0.48, C::from_rgb(47, 72, 98));
+                                for spread in [22.0, 15.0, 8.0] {
+                                    p.circle_stroke(center + vec2(0.0, 9.0), size * 0.48 + spread, Stroke::new(5.0, C::from_rgba_unmultiplied(52, 226, 255, 15)));
+                                }
+                                p.circle_filled(center + vec2(0.0, 22.0), size * 0.49, C::from_rgb(6, 12, 29));
+                                p.circle_filled(center + vec2(0.0, 9.0), size * 0.48, C::from_rgb(33, 56, 93));
                                 p.circle_stroke(center + vec2(0.0, 9.0), size * 0.48, Stroke::new(3.0, gold));
-                                p.circle_filled(center + vec2(0.0, 10.0), size * 0.41, C::from_rgb(129, 33, 61));
-                                p.circle_filled(top, size * 0.41, C::from_rgb(245, 80, 104));
+                                p.circle_filled(center + vec2(0.0, 10.0), size * 0.41, C::from_rgb(76, 25, 107));
+                                p.circle_filled(top, size * 0.41, C::from_rgb(214, 70, 203));
+                                p.circle_stroke(top, size * 0.40, Stroke::new(2.0, C::from_rgb(255, 170, 246)));
+                                p.circle_filled(top - vec2(size * 0.07, size * 0.17), size * 0.25, C::from_rgba_unmultiplied(250, 202, 255, 26));
                                 p.circle_filled(top - vec2(size * 0.1, size * 0.15), size * 0.16, C::from_rgba_unmultiplied(255, 185, 191, 90));
                                 p.text(top, Align2::CENTER_CENTER, "ЖМИ!", FontId::proportional(36.0), C::WHITE);
                                 if response.clicked() { game.tap(); }
@@ -165,7 +230,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                     ("Ребёрты", game.rebirths.to_string()),
                                     ("Время в игре", format!("{} мин", (game.played_seconds / 60.0) as u64)),
                                 ] {
-                                    egui::Frame::none().fill(panel).rounding(10.0).inner_margin(egui::Margin::same(14.0)).show(ui, |ui| {
+                                    egui::Frame::none().fill(panel).stroke(Stroke::new(1.0, C::from_rgb(55, 100, 136))).rounding(10.0).inner_margin(egui::Margin::same(14.0)).show(ui, |ui| {
                                         ui.set_min_width((width - 70.0).max(180.0));
                                         ui.horizontal(|ui| {
                                             ui.label(T::new(label).color(muted));
