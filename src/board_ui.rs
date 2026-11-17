@@ -43,7 +43,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
     let columns=(view.width()/155.0).floor().clamp(2.0,6.0) as usize;
     let gap=10.0;let side=(view.width()-16.0-(columns-1) as f32*gap)/columns as f32;
     let height = side * 0.86;
-    let count = if rebirths { (game.rebirths as usize + 12).max(32) } else { game.switches.len() };
+    let count = if rebirths { (game.rebirths as usize + 12).max(32) } else { game.visible_switches() };
     let rows = count.div_ceil(columns);
     egui::ScrollArea::vertical().id_salt(("vertical_switch_field", rebirths)).auto_shrink([false,false]).max_height((view.height() - 65.0).max(0.0))
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible).show_rows(ui,height+gap,rows,|ui,range| {

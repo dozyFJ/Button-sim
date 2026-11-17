@@ -48,13 +48,14 @@ pub struct Game {
     pub interface_open:bool,
     pub dark_mode: bool,
     pub active_boosts: Vec<ActiveBoost>,
+    revealed_switches: usize,
     switch_damage: Vec<u64>,
     pet_xp: std::collections::BTreeMap<usize, u64>,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,active_boosts:Vec::new(),switch_damage:vec![0;1024],pet_xp:Default::default(),
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,active_boosts:Vec::new(),revealed_switches:5,switch_damage:vec![0;1024],pet_xp:Default::default(),
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
@@ -73,12 +74,22 @@ impl Game {
         self.taps = self.taps.saturating_add(hits);
         if hits % 2 == 1 { self.switches[target] = !self.switches[target]; }
     }
+    pub fn visible_switches(&self) -> usize {
+        self.revealed_switches.min(self.grid_size * self.grid_size).min(self.switches.len())
+    }
+    fn reveal_affordable_switches(&mut self) {
+        while self.revealed_switches < self.switches.len() {
+            let step = (self.revealed_switches - 4) as f64;
+            if self.coins < 1_000.0 * step * step { break; }
+            self.revealed_switches += 1;
+        }
+    }
     pub fn switch_required_level(index:usize)->u64 { if index<5 {1} else {(index-3) as u64} }
     pub fn switch_required_rebirths(index: usize) -> u32 {
         if index < 5 { 0 } else { 1 + ((index - 5) / 10) as u32 }
     }
     pub fn switch_unlocked(&self,index:usize)->bool {
-        index < self.grid_size * self.grid_size && index < self.switches.len()
+        index < self.visible_switches()
             && self.level() >= Self::switch_required_level(index)
             && self.rebirths >= Self::switch_required_rebirths(index)
     }
@@ -95,6 +106,7 @@ impl Game {
         if self.paused||!seconds.is_finite() { return; }
         let dt=seconds.max(0.0); let income=self.coins_per_second()*dt;
         self.coins+=income; self.total_earned+=income; self.played_seconds+=dt;
+        self.reveal_affordable_switches();
         if let Some(h)=&mut self.hatch { h.elapsed+=dt; }
         if self.attack_running() {
             let before=self.attack_clock;
@@ -153,6 +165,7 @@ impl Game {
     pub fn rebirth_price(&self)->f64 { Self::rebirth_price_at(self.rebirths) }
     pub fn rebirth(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.coins<self.rebirth_price() { return false; }
+        self.reveal_affordable_switches();
         self.coins=0.0; self.multiplier=1; self.base_income=1.0; self.upgrades=0;
         self.rebirths=self.rebirths.saturating_add(1); self.attack_clock=0.0; true
     }
@@ -248,12 +261,12 @@ impl Game {
             .map(|(index, damage)| format!("{index}:{damage}")).collect::<Vec<_>>().join(",");
         let xp = self.pet_xp.iter().map(|(index, xp)| format!("{index}:{xp}"))
             .collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n{}\n",
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n{}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
             pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
             self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
             self.auto_attack,self.auto_hits,self.grid_size,self.selected_switch,
-            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage,xp)
+            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage,xp,self.revealed_switches)
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -288,7 +301,6 @@ impl Game {
             if ![8,32].contains(&g.grid_size)||g.selected_switch>=g.grid_size*g.grid_size {return None;}
             let states=lines.next()?;if states.len()!=1024||!states.bytes().all(|b|b==b'0'||b==b'1') {return None;}
             g.switches=states.bytes().map(|b|b==b'1').collect();
-            if !g.switch_unlocked(g.selected_switch) {g.selected_switch=0;}
         }
         g.dark_mode = lines.next() == Some("true");
         if let Some(damage) = lines.next().filter(|line| !line.is_empty()) {
@@ -308,6 +320,16 @@ impl Game {
                 g.pet_xp.insert(index, xp.parse().ok()?);
             }
         }
+        g.revealed_switches = if let Some(count) = lines.next().filter(|line| !line.is_empty()) {
+            count.parse::<usize>().ok()?.clamp(5, g.switches.len())
+        } else {
+            let previously_used = g.switches.iter().zip(&g.switch_damage)
+                .rposition(|(active, damage)| *active || *damage > 0)
+                .map_or(5, |index| index + 1);
+            previously_used.max(g.selected_switch + 1).max(5)
+        };
+        g.reveal_affordable_switches();
+        if !g.switch_unlocked(g.selected_switch) { g.selected_switch = 0; }
         g.grid_size=32;
         Some(g)
     }
@@ -360,8 +382,8 @@ mod tests {
         let game = Game { dark_mode: true, ..Game::default() };
         let save = game.save_text();
         assert!(Game::from_save(&save).unwrap().dark_mode);
-        let (old_save, _) = save.trim_end().rsplit_once('\n').unwrap();
-        assert!(!Game::from_save(old_save).unwrap().dark_mode);
+        let old_save = save.lines().take(8).collect::<Vec<_>>().join("\n");
+        assert!(!Game::from_save(&old_save).unwrap().dark_mode);
     }
 
     #[test]
@@ -413,6 +435,25 @@ mod tests {
         assert_eq!(restored.auto_hits,g.auto_hits);assert_eq!(restored.attack_clock,0.0);
     }
 
+
+    #[test]
+    fn multiplier_tiles_reveal_at_balance_milestones_and_stay_visible() {
+        let mut game = Game::default();
+        assert_eq!(game.visible_switches(), 5);
+        game.coins = 999.0;
+        game.tick(0.0);
+        assert_eq!(game.visible_switches(), 5);
+        game.tick(1.0);
+        assert_eq!(game.visible_switches(), 6);
+        assert_eq!(game.coins, 1_000.0);
+        game.coins = 4_000.0;
+        game.tick(0.0);
+        assert_eq!(game.visible_switches(), 7);
+        game.coins = 0.0;
+        let restored = Game::from_save(&game.save_text()).unwrap();
+        assert_eq!(restored.visible_switches(), 7);
+        assert!(!restored.switch_unlocked(5));
+    }
 
     #[test] fn starter_switches_and_level_locks() {
         let mut g=Game::default();for i in 0..5 {assert!(g.switch_unlocked(i));}
