@@ -32,11 +32,12 @@ pub struct Game {
     pub tab:Tab, pub paused:bool, pub taps:u64, pub total_earned:f64,
     pub played_seconds:f64, pub rebirths:u32,
     pub pets:Vec<PetKind>, pub equipped_pet:Option<usize>, pub hatch:Option<Hatch>, pub pets_open:bool,
+    pub equipped_pets:Vec<usize>, pub auto_attack:bool, pub attack_clock:f64, pub auto_hits:u64,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
@@ -49,13 +50,44 @@ impl Game {
         let dt=seconds.max(0.0); let income=self.coins_per_second()*dt;
         self.coins+=income; self.total_earned+=income; self.played_seconds+=dt;
         if let Some(h)=&mut self.hatch { h.elapsed+=dt; }
+        if self.attack_running() {
+            let before=self.attack_clock;
+            self.attack_clock+=dt;
+            let mut hits=0_u64;
+            for slot in 0..self.equipped_pets.len() {
+                let offset=0.7+slot as f64*0.18;
+                let old=(before-offset).max(0.0).floor() as u64;
+                let new=(self.attack_clock-offset).max(0.0).floor() as u64;
+                hits=hits.saturating_add(new.saturating_sub(old));
+            }
+            self.multiplier=self.multiplier.saturating_add(hits);
+            self.taps=self.taps.saturating_add(hits);
+            self.auto_hits=self.auto_hits.saturating_add(hits);
+        }
     }
     pub fn level(&self)->u64 { self.taps/100+1 }
     pub fn level_progress(&self)->f32 { (self.taps%100) as f32/100.0 }
     pub fn rank(&self)-> &'static str { match self.level() { 1..=4=>"НОВИЧОК",5..=14=>"ИСКАТЕЛЬ",15..=29=>"МАСТЕР",_=>"ЛЕГЕНДА" } }
     pub fn rebirth_bonus(&self)->f64 { 2.0_f64.powi(self.rebirths.min(30) as i32) }
     pub fn active_pet(&self)->Option<PetKind> { self.equipped_pet.and_then(|i|self.pets.get(i)).copied() }
-    pub fn pet_bonus(&self)->f64 { self.active_pet().map(PetKind::bonus).unwrap_or(1.0) }
+    pub fn pet_bonus(&self)->f64 {
+        1.0+self.equipped_pets.iter().filter_map(|&i|self.pets.get(i)).map(|p|p.bonus()-1.0).sum::<f64>()
+    }
+    pub fn attack_running(&self)->bool {
+        self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.equipped_pets.is_empty()
+    }
+    pub fn toggle_auto_attack(&mut self)->bool {
+        if self.paused||self.hatch.is_some()||self.pets_open||self.equipped_pets.is_empty() { return false; }
+        self.auto_attack=!self.auto_attack;self.attack_clock=0.0;
+        if self.auto_attack { self.tab=Tab::Home; }
+        true
+    }
+    pub fn attack_phase(&self,slot:usize)->f32 {
+        ((self.attack_clock-0.7-slot as f64*0.18).max(0.0)%1.0) as f32
+    }
+    pub fn pet_is_striking(&self,slot:usize)->bool {
+        self.auto_attack&&self.attack_clock>=1.7+slot as f64*0.18&&self.attack_phase(slot)<0.2
+    }
     pub fn coins_per_second(&self)->f64 { self.base_income*self.multiplier as f64*self.rebirth_bonus()*self.pet_bonus() }
     pub fn upgrade_price(&self)->f64 { 50.0*2.0_f64.powi(self.upgrades.min(30) as i32) }
     pub fn upgrade(&mut self)->bool {
@@ -67,7 +99,7 @@ impl Game {
     pub fn rebirth(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.coins<self.rebirth_price() { return false; }
         self.coins=0.0; self.multiplier=1; self.base_income=1.0; self.upgrades=0;
-        self.rebirths=self.rebirths.saturating_add(1); true
+        self.rebirths=self.rebirths.saturating_add(1); self.attack_clock=0.0; true
     }
     pub fn buy_capsule(&mut self,capsule:Capsule)->bool {
         if self.paused||self.hatch.is_some()||self.pets.len()>=1000||self.coins<capsule.price() { return false; }
@@ -78,7 +110,18 @@ impl Game {
     }
     pub fn equip_pet(&mut self,index:usize)->bool {
         if self.paused||index>=self.pets.len() { return false; }
-        self.equipped_pet=Some(index); true
+        if !self.equipped_pets.contains(&index) {
+            if self.equipped_pets.len()==3 { self.equipped_pets.pop(); }
+            self.equipped_pets.push(index);
+            self.attack_clock=0.0;
+        }
+        self.equipped_pet=self.equipped_pets.first().copied(); true
+    }
+    pub fn unequip_pet(&mut self,index:usize)->bool {
+        if self.paused||self.hatch.is_some() { return false; }
+        let Some(slot)=self.equipped_pets.iter().position(|&i|i==index) else { return false; };
+        self.equipped_pets.remove(slot);self.equipped_pet=self.equipped_pets.first().copied();
+        self.attack_clock=0.0;if self.equipped_pets.is_empty() { self.auto_attack=false; } true
     }
     pub fn finish_hatch(&mut self,equip:bool)->bool {
         let Some(h)=&self.hatch else { return false; };
@@ -88,9 +131,11 @@ impl Game {
     }
     pub fn save_text(&self)->String {
         let pets=self.pets.iter().map(|p|(*p as u8).to_string()).collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n",
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
-            pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()))
+            pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
+            self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
+            self.auto_attack,self.auto_hits)
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -107,6 +152,18 @@ impl Game {
         let equipped=lines.next()?; if equipped!="-" {
             let i:usize=equipped.parse().ok()?; if i>=g.pets.len() { return None; } g.equipped_pet=Some(i);
         }
+        if let Some(team)=lines.next() {
+            if !team.is_empty() {
+                for id in team.split(',') {
+                    let i:usize=id.parse().ok()?;
+                    if i>=g.pets.len()||g.equipped_pets.contains(&i)||g.equipped_pets.len()>=3 { return None; }
+                    g.equipped_pets.push(i);
+                }
+            }
+        } else if let Some(i)=g.equipped_pet { g.equipped_pets.push(i); }
+        g.equipped_pet=g.equipped_pets.first().copied();
+        g.auto_attack=lines.next().map(str::parse).transpose().ok()?.unwrap_or(false)&&!g.equipped_pets.is_empty();
+        g.auto_hits=lines.next().map(str::parse).transpose().ok()?.unwrap_or(0);
         Some(g)
     }
 }
@@ -152,4 +209,35 @@ mod tests {
         g.tick(3.0);g.finish_hatch(true);let restored=Game::from_save(&g.save_text()).unwrap();
         assert_eq!(restored.equipped_pet,Some(0));assert!(Game::from_save("broken").is_none());
     }
+
+    #[test] fn auto_attack_requires_equipped_pet_and_travel() {
+        let mut g=Game::default();assert!(!g.toggle_auto_attack());
+        g.pets.push(PetKind::Cat);g.equip_pet(0);assert!(g.toggle_auto_attack());
+        g.tick(1.69);assert_eq!(g.auto_hits,0);g.tick(0.02);
+        assert_eq!(g.auto_hits,1);assert_eq!(g.multiplier,2);assert!(g.pet_is_striking(0));
+    }
+    #[test] fn team_hits_are_staggered_and_timestep_independent() {
+        let mut a=Game::default();a.pets=vec![PetKind::Cat,PetKind::Dog,PetKind::Bunny];
+        for i in 0..3 {a.equip_pet(i);}a.toggle_auto_attack();let mut b=a.clone();
+        a.tick(5.1);for _ in 0..510 {b.tick(0.01);}
+        assert_eq!(a.auto_hits,12);assert_eq!(a.auto_hits,b.auto_hits);assert_eq!(a.multiplier,b.multiplier);
+        assert!((a.pet_bonus()-2.1).abs()<0.001);
+    }
+    #[test] fn pause_inventory_and_hatch_suspend_attacks_without_catchup() {
+        let mut g=Game::default();g.pets.push(PetKind::Cat);g.equip_pet(0);g.toggle_auto_attack();
+        g.tick(1.5);g.paused=true;g.tick(10.0);assert_eq!(g.attack_clock,1.5);
+        g.paused=false;g.pets_open=true;g.tick(10.0);assert_eq!(g.auto_hits,0);
+        g.pets_open=false;g.coins=1000.0;g.buy_capsule(Capsule::Meadow);g.tick(3.0);assert_eq!(g.auto_hits,0);
+        g.finish_hatch(false);g.tick(0.3);assert_eq!(g.auto_hits,1);
+        g.unequip_pet(0);assert!(!g.auto_attack);
+    }
+    #[test] fn team_save_supports_old_format_and_restarts_travel() {
+        let old="BUTTON_SIM_1\n1000 1 1 0 0 0 0 0\n0,1\n1\n";
+        let mut g=Game::from_save(old).unwrap();assert_eq!(g.equipped_pets,vec![1]);
+        g.equip_pet(0);g.toggle_auto_attack();g.tick(2.0);
+        let restored=Game::from_save(&g.save_text()).unwrap();
+        assert_eq!(restored.equipped_pets,g.equipped_pets);assert!(restored.auto_attack);
+        assert_eq!(restored.auto_hits,g.auto_hits);assert_eq!(restored.attack_clock,0.0);
+    }
+
 }

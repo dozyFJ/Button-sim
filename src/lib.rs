@@ -108,7 +108,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 108.0), Sense::hover());
             let p = ui.painter();
-            aero_card(p, r.expand2(vec2(5.0, 5.0)), gold);
+            p.line_segment([pos2(r.left()-12.0,r.bottom()+11.0),pos2(r.right()+12.0,r.bottom()+11.0)], Stroke::new(1.0, C::from_rgb(47,71,100)));
             let avatar = pos2(r.left() + 42.0, r.top() + 24.0);
             for radius in [29.0, 26.0, 23.0] {
                 p.circle_stroke(avatar, radius, Stroke::new(2.0, C::from_rgba_unmultiplied(80, 225, 255, 25)));
@@ -119,25 +119,36 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
             p.rect_filled(Rect::from_center_size(avatar + vec2(0.0, 10.0), vec2(23.0, 12.0)), 6.0, C::from_rgb(217, 232, 249));
             p.text(pos2(r.left() + 42.0, r.top() + 59.0), Align2::CENTER_CENTER, game.rank(), FontId::proportional(11.0), gold);
             let card = Rect::from_min_max(pos2(r.left() + 98.0, r.top() + 4.0), pos2(r.right() - 53.0, r.top() + 65.0));
-            p.rect_filled(card, 12.0, C::from_rgba_unmultiplied(14, 29, 57, 150));
+            p.rect_filled(card, 0.0, C::from_rgba_unmultiplied(14, 29, 57, 150));
             p.text(pos2(card.center().x, card.top() + 12.0), Align2::CENTER_CENTER, "ДЕНЬГИ", FontId::proportional(10.0), gold);
             p.text(pos2(card.center().x, card.top() + 33.0), Align2::CENTER_CENTER, amount(game.coins), FontId::proportional(22.0), C::WHITE);
             p.text(pos2(card.center().x, card.bottom() - 9.0), Align2::CENTER_CENTER, format!("+{} / сек", amount(game.coins_per_second())), FontId::proportional(10.0), green);
             let rebirth_card = Rect::from_min_max(pos2(card.left(), r.top() + 72.0), pos2(card.right(), r.top() + 102.0));
-            p.rect_filled(rebirth_card, 10.0, C::from_rgba_unmultiplied(155, 88, 233, 35));
+            p.rect_filled(rebirth_card, 0.0, C::from_rgba_unmultiplied(155, 88, 233, 35));
             p.text(rebirth_card.center(), Align2::CENTER_CENTER, format!("РЕБЁРТЫ  ·  {}", game.rebirths), FontId::proportional(12.0), C::from_rgb(225, 178, 255));
             let pause = Rect::from_min_size(pos2(r.right() - 42.0, r.top() + 10.0), vec2(42.0, 42.0));
-            p.rect_filled(pause, 12.0, C::from_rgba_unmultiplied(150, 105, 255, 35));
+            p.rect_filled(pause, 0.0, C::from_rgba_unmultiplied(150, 105, 255, 35));
             for x in [-5.0, 5.0] {
                 p.rect_filled(Rect::from_center_size(pause.center() + vec2(x, 0.0), vec2(4.0, 16.0)), 1.0, gold);
             }
             if ui.interact(pause, ui.id().with("pause"), Sense::click()).clicked() { game.paused = !game.paused; }
         });
 
-    egui::TopBottomPanel::bottom("navigation").exact_height(116.0)
+    egui::TopBottomPanel::bottom("navigation").exact_height(170.0)
         .frame(egui::Frame::none().fill(navy).inner_margin(egui::Margin::same(8.0)))
         .show(ctx, |ui| {
-            aero_card(ui.painter(), ui.max_rect().shrink(1.0), gold);
+            let dock = ui.max_rect();
+            ui.painter().line_segment([pos2(dock.left()-8.0,dock.top()-8.0),pos2(dock.right()+8.0,dock.top()-8.0)], Stroke::new(1.0,C::from_rgb(47,71,100)));
+            let team_count = game.equipped_pets.len();
+            let attack_label = if team_count == 0 { "АВТОАТАКА · ВЫБРАТЬ ПИТОМЦЕВ".to_owned() }
+                else { format!("АВТОАТАКА · {} · {}/3", if game.auto_attack { "ВКЛ" } else { "ВЫКЛ" }, team_count) };
+            let attack_color = if game.auto_attack { green } else { gold };
+            if ui.add_enabled(!blocked && !game.paused,
+                egui::Button::new(T::new(attack_label).size(13.0).strong().color(navy))
+                    .fill(attack_color).rounding(0.0).min_size(vec2(ui.available_width(), 42.0))).clicked() {
+                if team_count == 0 { game.pets_open = true; } else { game.toggle_auto_attack(); }
+            }
+            ui.add_space(5.0);
             let (level_rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::hover());
             let bar = Rect::from_min_size(level_rect.left_top() + vec2(10.0, 14.0), vec2(level_rect.width() - 20.0, 6.0));
             ui.painter().rect_filled(bar, 3.0, C::from_rgb(35, 49, 77));
@@ -160,7 +171,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                         let (rect, response) = col.allocate_exact_size(vec2(col.available_width(), 68.0), Sense::click());
                         let active = game.tab == tab;
                         let p = col.painter();
-                        if active { p.rect_filled(rect.shrink(3.0), 12.0, C::from_rgba_unmultiplied(98, 226, 255, 30)); }
+                        if active { p.rect_filled(rect.shrink(3.0), 0.0, C::from_rgba_unmultiplied(98, 226, 255, 30)); }
                         if active { p.rect_filled(Rect::from_min_size(rect.min + vec2(12.0, 0.0), vec2((rect.width() - 24.0).max(4.0), 3.0)), 2.0, gold); }
                         nav_icon(p, rect.center() - vec2(0.0, 10.0), i, if active { gold } else { muted });
                         p.text(pos2(rect.center().x, rect.bottom() - 15.0), Align2::CENTER_CENTER, label, FontId::proportional(if width < 370.0 { 9.0 } else { 11.0 }), if active { C::WHITE } else { muted });
@@ -199,10 +210,11 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                 ui.label(T::new(format!("Множитель ×{}", game.multiplier)).size(27.0).strong().color(gold));
                                 ui.label(T::new("Каждое нажатие увеличивает доход").size(13.0).color(muted));
                                 ui.add_space(26.0);
-                                let size = (ui.available_width() * 0.8).min(280.0);
-                                let (rect, response) = ui.allocate_exact_size(vec2(size, size + 24.0), Sense::click());
+                                let size = (ui.available_width() * 0.64).min(220.0);
+                                let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), size + 142.0), Sense::click());
                                 let center = rect.center() - vec2(0.0, 10.0);
-                                let pressed = response.is_pointer_button_down_on();
+                                let pet_impact = (0..game.equipped_pets.len()).any(|slot| game.pet_is_striking(slot));
+                                let pressed = response.is_pointer_button_down_on() || pet_impact;
                                 let top = center + vec2(0.0, if pressed { 10.0 } else { 0.0 });
                                 let p = ui.painter();
                                 for spread in [22.0, 15.0, 8.0] {
@@ -217,13 +229,12 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                 p.circle_filled(top - vec2(size * 0.07, size * 0.17), size * 0.25, C::from_rgba_unmultiplied(250, 202, 255, 26));
                                 p.circle_filled(top - vec2(size * 0.1, size * 0.15), size * 0.16, C::from_rgba_unmultiplied(255, 185, 191, 90));
                                 p.text(top, Align2::CENTER_CENTER, "ЖМИ!", FontId::proportional(36.0), C::WHITE);
-                                if response.clicked() { game.tap(); }
+                                pet_ui::attack_scene(p, rect, center, size, game);
+                                if response.clicked() && (response.interact_pointer_pos().map(|point| point.distance(center) <= size * 0.48).unwrap_or(false)) { game.tap(); }
                                 ui.add_space(22.0);
                                 ui.label(T::new(format!("Бонус ребёртов ×{}", amount(game.rebirth_bonus()))).color(green));
-                                if let Some(pet) = game.active_pet() {
-                                    let (r, _) = ui.allocate_exact_size(vec2(110.0, 110.0), Sense::hover());
-                                    pet_render::pet(ui.painter(), r, pet, game.played_seconds as f32);
-                                    ui.label(T::new(format!("{} · доход ×{:.1}", pet.name(), pet.bonus())).color(gold));
+                                if !game.equipped_pets.is_empty() {
+                                    ui.label(T::new(format!("Команда {}/3 · доход ×{:.1}", game.equipped_pets.len(), game.pet_bonus())).color(gold));
                                 }
                                 ui.add_space(60.0);
                             }
@@ -236,7 +247,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                 ui.add_space(18.0);
                                 let can_buy = game.coins >= game.upgrade_price();
                                 if ui.add_enabled(can_buy, egui::Button::new(T::new(format!("Улучшить · {} денег", amount(game.upgrade_price()))).color(navy).strong()).fill(gold).rounding(12.0).min_size(vec2(ui.available_width().min(340.0), 58.0))).clicked() { game.upgrade(); }
-                                if !can_buy { ui.label(T::new("Накопи денегы для улучшения").color(muted)); }
+                                if !can_buy { ui.label(T::new("Накопи деньги для улучшения").color(muted)); }
                             }
                             game::Tab::Statistics => {
                                 ui.heading("Статистика");
@@ -249,6 +260,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                     ("Ранг", game.rank().to_owned()),
                                     ("Ребёрты", game.rebirths.to_string()),
                                     ("Питомцы", game.pets.len().to_string()),
+                                    ("Удары питомцев", game.auto_hits.to_string()),
                                     ("Бонус питомца", format!("×{:.1}", game.pet_bonus())),
                                     ("Время в игре", format!("{} мин", (game.played_seconds / 60.0) as u64)),
                                 ] {
@@ -320,10 +332,10 @@ impl ApplicationHandler for App {
                 let now = Instant::now();
                 let dt = now.duration_since(self.last_tick.replace(now).unwrap_or(now)).as_secs_f64().min(0.25);
                 self.game.tick(dt);
-                let before = (self.game.pets.len(), self.game.equipped_pet, self.game.upgrades, self.game.rebirths);
+                let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths);
                 let input = g.state.take_egui_input(&g.gpu.window);
                 let output = g.egui.run(input, |ctx| ui(ctx, &mut self.game));
-                let after = (self.game.pets.len(), self.game.equipped_pet, self.game.upgrades, self.game.rebirths);
+                let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths);
                 if before != after || self.last_save.map(|t| now.duration_since(t).as_secs() >= 5).unwrap_or(true) {
                     save_game(&self.game, self.save_path.as_deref());
                     self.last_save = Some(now);

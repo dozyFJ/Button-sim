@@ -35,7 +35,7 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let screen=ctx.screen_rect();
     let cyan=C::from_rgb(109,241,255);
     if game.hatch.is_none()&&!game.pets_open&&!game.paused {
-        egui::Area::new(egui::Id::new("pets_float")).anchor(Align2::RIGHT_BOTTOM,vec2(-16.0,-134.0)).order(egui::Order::Foreground).show(ctx,|ui| {
+        egui::Area::new(egui::Id::new("pets_float")).anchor(Align2::RIGHT_BOTTOM,vec2(-16.0,-188.0)).order(egui::Order::Foreground).show(ctx,|ui| {
             let (r,response)=ui.allocate_exact_size(vec2(88.0,64.0),Sense::click());
             aero_card(ui.painter(),r.shrink(3.0),C::from_rgb(221,151,255));
             let c=r.center()-vec2(0.0,10.0);
@@ -47,11 +47,13 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     }
     if game.pets_open {
         let mut open=true;
-        let rect=Rect::from_min_max(screen.left_top()+vec2(14.0,140.0),screen.right_bottom()-vec2(14.0,128.0));
+        let rect=Rect::from_min_max(screen.left_top()+vec2(14.0,140.0),screen.right_bottom()-vec2(14.0,182.0));
         egui::Window::new(format!("Питомцы · {}",game.pets.len())).open(&mut open).fixed_rect(rect)
             .collapsible(false).resizable(false).show(ctx,|ui| {
                 ui.add_enabled_ui(!game.paused,|ui| {
-                    ui.label(T::new("Активен 1 питомец · бонус к доходу").color(cyan));
+                    ui.label(T::new(format!("Команда {}/3 · доход ×{:.1}",game.equipped_pets.len(),game.pet_bonus())).color(cyan));
+                    ui.label(T::new("Выбери питомцев и включи автоатаку над уровнем").size(11.0));
+                    if game.equipped_pets.len()==3 { ui.label(T::new("Команда полна: новый питомец заменит третьего").size(11.0)); }
                     if game.pets.is_empty() {
                         ui.add_space(25.0);ui.label("Коллекция пока пуста");
                         if ui.button("К капсулам").clicked() { game.tab=crate::game::Tab::Capsules;game.pets_open=false; }
@@ -69,8 +71,9 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
                                                 pet_render::pet(ui.painter(),r,pet,game.played_seconds as f32);
                                                 ui.label(T::new(pet.name()).strong().color(C::WHITE));
                                                 ui.label(T::new(format!("{} · ×{:.1}",pet.rarity(),pet.bonus())).size(10.0).color(cyan));
-                                                let active=game.equipped_pet==Some(index);
-                                                if ui.add_enabled(!active,egui::Button::new(if active {"Применён"} else {"Применить"})).clicked() { game.equip_pet(index); }
+                                                let active=game.equipped_pets.contains(&index);
+                                                let label=if active {"Снять"} else if game.equipped_pets.len()==3 {"Заменить 3-го"} else {"Применить"};
+                                                if ui.button(label).clicked() { if active {game.unequip_pet(index);} else {game.equip_pet(index);} }
                                             });
                                         });
                                     }
@@ -119,5 +122,48 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
                 });
             });
         ctx.request_repaint();
+    }
+}
+
+/// Position and lunge use the same simulation clock that awards actual hits.
+pub fn attack_scene(p:&egui::Painter,rect:Rect,center:egui::Pos2,button_size:f32,game:&Game) {
+    let count=game.equipped_pets.len();
+    for (slot,&index) in game.equipped_pets.iter().enumerate() {
+        let Some(&pet)=game.pets.get(index) else {continue;};
+        let angle=if count==1 {std::f32::consts::FRAC_PI_2}
+            else if count==2 {if slot==0 {2.8} else {0.34}}
+            else {[-2.7_f32,-0.44,1.57][slot]};
+        let direction=vec2(angle.cos(),angle.sin());
+        let radius=button_size*0.64;
+        let target=center+direction*radius;
+        let start=pos2(rect.left()+35.0+slot as f32*65.0,rect.bottom()-32.0);
+        let travel=if game.auto_attack {(game.attack_clock as f32/0.7).clamp(0.0,1.0)} else {0.0};
+        let smooth=travel*travel*(3.0-2.0*travel);
+        let mut position=start+(target-start)*smooth;
+        if game.auto_attack&&travel>=1.0 {
+            let phase=game.attack_phase(slot);
+            if game.attack_clock>=0.7+slot as f64*0.18 {
+                // Anticipate the next simulation hit, then recoil on its frame.
+                let lunge=if phase>0.78 {(phase-0.78)/0.22} else if game.pet_is_striking(slot) {1.0-phase/0.2} else {0.0};
+                position-=direction*lunge.clamp(0.0,1.0)*button_size*0.16;
+            }
+        }
+        let size=(button_size*0.36).clamp(54.0,78.0);
+        let model=Rect::from_center_size(position,vec2(size,size));
+        let tint=pet.color();let color=C::from_rgb(tint[0],tint[1],tint[2]);
+        if game.auto_attack {
+            p.line_segment([position,center+direction*button_size*0.43],Stroke::new(1.5,C::from_rgba_unmultiplied(tint[0],tint[1],tint[2],65)));
+        }
+        pet_render::pet(p,model,pet,game.played_seconds as f32+slot as f32);
+        if game.pet_is_striking(slot) {
+            let hit=center+direction*button_size*0.43;
+            let phase=game.attack_phase(slot);
+            for i in 0..6 {
+                let angle=i as f32*std::f32::consts::TAU/6.0;
+                let v=vec2(angle.cos(),angle.sin());
+                p.line_segment([hit+v*4.0,hit+v*(8.0+phase*70.0)],Stroke::new(2.0,color));
+            }
+            p.text(hit-vec2(0.0,18.0+phase*45.0),Align2::CENTER_CENTER,"+1",egui::FontId::proportional(20.0),C::WHITE);
+        }
     }
 }
