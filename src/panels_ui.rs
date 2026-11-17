@@ -24,12 +24,25 @@ fn card(ui:&mut egui::Ui,title:&str,value:&str) {
 }
 pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState) {
     if state.panel==Panel::Profile {
-        let width=if workspace.width()<600.0 {workspace.width()-16.0} else {(workspace.width()*0.48).clamp(270.0,380.0)};
-        let rect=Rect::from_min_max(pos2(workspace.right()-width-8.0,workspace.top()+8.0),workspace.right_bottom()-vec2(8.0,8.0));
-        egui::Window::new("profile_panel").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(frame(ctx)).show(ctx,|ui| {
+        let width = workspace.width().min(if workspace.width() < 600.0 { workspace.width() } else { 460.0 });
+        let height = (workspace.height() - 8.0).clamp(0.0, 415.0);
+        let menu = Rect::from_min_size(workspace.left_top(), vec2(width, height));
+        let frame = frame(ctx).rounding(egui::Rounding { nw: 0.0, ne: 0.0, sw: 18.0, se: 18.0 });
+        let content_size = menu.size() - frame.total_margin().sum();
+        egui::Window::new("profile_panel").title_bar(false).fixed_pos(menu.min).fixed_size(content_size)
+            .resizable(false).collapsible(false).frame(frame).show(ctx, |ui| {
             paint_background(ui);
-            if heading(ui,"Мой профиль") {state.close();}
-            ui.horizontal(|ui| {ui.selectable_value(&mut state.profile_stats,false,"Профиль");ui.selectable_value(&mut state.profile_stats,true,"Статистика");});
+            if heading(ui,"Мой профиль") { state.close(); return; }
+            ui.horizontal(|ui| {
+                let width = ((ui.available_width() - ui.spacing().item_spacing.x) * 0.5).max(0.0);
+                for (stats, title) in [(false, "Профиль"), (true, "Статистика")] {
+                    let selected = state.profile_stats == stats;
+                    if ui.add_sized(vec2(width, 40.0), egui::Button::new(T::new(title).strong()).selected(selected)).clicked() {
+                        state.profile_stats = stats;
+                    }
+                }
+            });
+            ui.add_space(6.0);
             egui::ScrollArea::vertical().id_salt("profile_cards").show(ui,|ui| {
                 if !state.profile_stats {
                     card(ui,"Игрок",game.rank());card(ui,"Уровень",&game.level().to_string());
