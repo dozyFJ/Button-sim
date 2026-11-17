@@ -6,6 +6,9 @@ pub enum PetKind { Cat, Dog, Bunny, Fox, Dragon, Unicorn }
 impl PetKind {
     pub fn name(self) -> &'static str { match self { Self::Cat=>"Котик", Self::Dog=>"Щенок", Self::Bunny=>"Зайчик", Self::Fox=>"Лисёнок", Self::Dragon=>"Дракон", Self::Unicorn=>"Единорог" } }
     pub fn rarity(self) -> &'static str { match self { Self::Cat|Self::Dog=>"Обычный", Self::Bunny=>"Редкий", Self::Fox=>"Эпический", _=>"Легендарный" } }
+    pub fn evolution_tier(self) -> u8 {
+        match self { Self::Cat | Self::Dog => 1, Self::Bunny => 2, Self::Fox => 3, Self::Dragon => 4, Self::Unicorn => 5 }
+    }
     pub fn damage(self) -> u64 {
         match self { Self::Cat => 2, Self::Dog => 3, Self::Bunny => 5, Self::Fox => 8, Self::Dragon => 12, Self::Unicorn => 16 }
     }
@@ -40,11 +43,12 @@ pub struct Game {
     pub interface_open:bool,
     pub dark_mode: bool,
     switch_damage: Vec<u64>,
+    pet_xp: std::collections::BTreeMap<usize, u64>,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,switch_damage:vec![0;1024],
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,switch_damage:vec![0;1024],pet_xp:Default::default(),
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
@@ -97,6 +101,10 @@ impl Game {
                 let new = (self.attack_clock - offset).max(0.0).floor() as u64;
                 let pet_hits = new.saturating_sub(old);
                 hits = hits.saturating_add(pet_hits);
+                if pet_hits > 0 {
+                    let xp = self.pet_xp.entry(*pet).or_default();
+                    *xp = xp.saturating_add(pet_hits);
+                }
                 damage = damage.saturating_add(pet_hits.saturating_mul(self.pets[*pet].damage()));
             }
             if hits > 0 {
@@ -164,9 +172,35 @@ impl Game {
         self.equipped_pets.remove(slot);self.equipped_pet=self.equipped_pets.first().copied();
         self.attack_clock=0.0;if self.equipped_pets.is_empty() { self.auto_attack=false; } true
     }
+    pub fn pet_xp(&self, index: usize) -> u64 {
+        self.pet_xp.get(&index).copied().unwrap_or(0)
+    }
+    pub fn equip_best_pet(&mut self) -> bool {
+        let best = (0..self.pets.len()).filter(|index| !self.equipped_pets.contains(index))
+            .max_by_key(|&index| (self.pets[index].damage(), self.pet_xp(index), std::cmp::Reverse(index)));
+        best.is_some_and(|index| self.equip_pet(index))
+    }
+    pub fn unequip_all_pets(&mut self) {
+        if self.paused || self.hatch.is_some() { return; }
+        self.equipped_pets.clear();
+        self.equipped_pet = None;
+        self.auto_attack = false;
+        self.attack_clock = 0.0;
+    }
+    pub fn delete_pets(&mut self, mut indices: Vec<usize>) -> bool {
+        if self.paused || self.hatch.is_some() || indices.is_empty()
+            || indices.iter().any(|&index| index >= self.pets.len()) { return false; }
+        indices.sort_unstable();
+        indices.dedup();
+        for index in indices.into_iter().rev() { self.delete_pet(index); }
+        true
+    }
     pub fn delete_pet(&mut self,index:usize)->bool {
         if self.paused||self.hatch.is_some()||index>=self.pets.len() {return false;}
         self.pets.remove(index);
+        let mut later_xp = self.pet_xp.split_off(&index);
+        later_xp.remove(&index);
+        self.pet_xp.extend(later_xp.into_iter().map(|(slot, xp)| (slot - 1, xp)));
         self.equipped_pets.retain(|&i|i!=index);
         for i in &mut self.equipped_pets {if *i>index {*i-=1;}}
         self.equipped_pet=self.equipped_pets.first().copied();self.attack_clock=0.0;
@@ -206,12 +240,14 @@ impl Game {
         let pets=self.pets.iter().map(|p|(*p as u8).to_string()).collect::<Vec<_>>().join(",");
         let damage = self.switch_damage.iter().enumerate().filter(|(_, damage)| **damage > 0)
             .map(|(index, damage)| format!("{index}:{damage}")).collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n",
+        let xp = self.pet_xp.iter().map(|(index, xp)| format!("{index}:{xp}"))
+            .collect::<Vec<_>>().join(",");
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
             pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
             self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
             self.auto_attack,self.auto_hits,self.grid_size,self.selected_switch,
-            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage)
+            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage,xp)
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -256,6 +292,14 @@ impl Game {
                 let damage: u64 = damage.parse().ok()?;
                 if index >= g.switch_damage.len() || damage >= Self::switch_max_hp(index) { return None; }
                 g.switch_damage[index] = damage;
+            }
+        }
+        if let Some(xp) = lines.next().filter(|line| !line.is_empty()) {
+            for entry in xp.split(',') {
+                let (index, xp) = entry.split_once(':')?;
+                let index: usize = index.parse().ok()?;
+                if index >= g.pets.len() { return None; }
+                g.pet_xp.insert(index, xp.parse().ok()?);
             }
         }
         g.grid_size=32;
@@ -312,6 +356,25 @@ mod tests {
         assert!(Game::from_save(&save).unwrap().dark_mode);
         let (old_save, _) = save.trim_end().rsplit_once('\n').unwrap();
         assert!(!Game::from_save(old_save).unwrap().dark_mode);
+    }
+
+    #[test]
+    fn pet_xp_follows_the_pet_through_save_and_bulk_deletion() {
+        let mut game = Game::default();
+        game.pets = vec![PetKind::Dog, PetKind::Cat, PetKind::Dragon];
+        assert!(game.equip_best_pet());
+        assert_eq!(game.equipped_pets, vec![2]);
+        assert!(game.toggle_auto_attack());
+        game.tick(2.0);
+        assert_eq!(game.pet_xp(2), 1);
+        let mut game = Game::from_save(&game.save_text()).unwrap();
+        assert!(!game.delete_pets(vec![0, 9]));
+        assert!(game.delete_pets(vec![1, 0, 1]));
+        assert_eq!(game.pets, vec![PetKind::Dragon]);
+        assert_eq!(game.pet_xp(0), 1);
+        assert_eq!(game.equipped_pets, vec![0]);
+        game.unequip_all_pets();
+        assert!(game.equipped_pets.is_empty() && !game.auto_attack);
     }
 
     #[test] fn auto_attack_requires_equipped_pet_and_travel() {

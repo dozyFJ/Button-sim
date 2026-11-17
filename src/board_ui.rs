@@ -74,13 +74,15 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                     Stroke::NONE,
                 ));
                 let fill = if !unlocked {
-                    crate::theme_color(dark, [165,170,150], [40,39,61])
+                    crate::theme_color(dark, [157,160,163], [53,55,63])
                 } else if active {
                     crate::theme_color(dark, [140,191,105], [29,110,105])
                 } else {
                     crate::theme_color(dark, [231,190,119], [61,48,110])
                 };
-                let border = if selected { C::from_rgb(230,148,36) } else {
+                let border = if !unlocked {
+                    crate::theme_color(dark, [105,108,112], [112,115,123])
+                } else if selected { C::from_rgb(230,148,36) } else {
                     crate::theme_color(dark, [104,119,76], [124,111,183])
                 };
                 p.add(Shape::convex_polygon(face.to_vec(), fill, Stroke::new(if selected { 3.0 } else { 1.0 }, border)));
@@ -88,7 +90,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 for (y, width) in [(0.0, 13.0), (3.0, 7.0), (6.0, 3.0)] {
                     p.rect_filled(Rect::from_min_size(face[0] + vec2(5.0, 5.0 + y), vec2(width, 3.0)), 0.0, highlight);
                 }
-                let ink = crate::theme_color(dark, [45,62,38], [247,243,255]);
+                let ink = if unlocked { crate::theme_color(dark, [45,62,38], [247,243,255]) } else { crate::theme_color(dark, [38,41,45], [231,232,238]) };
                 if rebirths {
                     let price = Game::rebirth_price_at(index as u32);
                     let status = if completed { "ГОТОВО" } else if selected { "СЛЕД." } else { "ЗАКРЫТО" };
@@ -97,8 +99,8 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                         format!("ЦЕНА {}", amount(price)),
                         "ДОХОД X2".into(),
                         status.into(),
-                    ], ink, None);
-                    if selected && response.clicked() { game.rebirth(); }
+                    ], ink, None, !unlocked);
+                    if unlocked && selected && response.clicked() { game.rebirth(); }
                 } else {
                     let max_hp = Game::switch_max_hp(index);
                     let hp = game.switch_hp(index);
@@ -106,10 +108,17 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                         format!("#{}", index + 1), format!("{hp}/{max_hp}"), "НАГР +1".into(),
                         format!("УР {}", Game::switch_required_level(index)),
                         format!("РБ {} · {}", Game::switch_required_rebirths(index), Game::switch_rarity(index)),
-                    ], ink, Some(hp as f32 / max_hp as f32));
-                    if response.clicked() { game.tap_switch(index); }
+                    ], ink, unlocked.then_some(hp as f32 / max_hp as f32), !unlocked);
+                    if unlocked && response.clicked() { game.tap_switch(index); }
                 }
-                if !rebirths && selected && !game.equipped_pets.is_empty() {
+                if !unlocked {
+                    let center = face[1].lerp(face[2], 0.20) - vec2(17.0, 0.0);
+                    let lock = crate::theme_color(dark, [53,57,64], [230,232,239]);
+                    p.circle_filled(center, 11.0, crate::theme_color(dark, [212,215,218], [34,36,42]));
+                    p.rect_stroke(Rect::from_center_size(center - vec2(0.0, 3.0), vec2(7.0, 9.0)), 3.0, Stroke::new(1.5, lock));
+                    p.rect_filled(Rect::from_center_size(center + vec2(0.0, 2.5), vec2(11.0, 8.0)), 2.0, lock);
+                }
+                if unlocked && !rebirths && selected && !game.equipped_pets.is_empty() {
                     crate::pet_ui::attack_scene(p,Rect::from_center_size(r.center(),r.size()),r.center(),side*0.62,game);
                 }
             }

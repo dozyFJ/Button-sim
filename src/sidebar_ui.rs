@@ -133,15 +133,23 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             state.sidebar_scroll = out.state.offset.x;
         });
 
-        let width = (dock.width() * 0.62).min(230.0);
+        let width = (dock.width() - 16.0).max(0.0);
         let pocket = Rect::from_min_size(pos2(dock.center().x - width * 0.5, strip.bottom()), vec2(width, XP_POCKET));
         let painter = ui.painter();
         painter.rect_filled(pocket, egui::Rounding { nw: 0.0, ne: 0.0, sw: 12.0, se: 12.0 }, fill);
-        let xp = format!("Уровень {}  ·  {} / 100 XP", game.level(), game.taps % 100);
-        painter.text(pocket.center() - vec2(0.0, 5.0), Align2::CENTER_CENTER, xp, FontId::proportional(12.0), ui.visuals().text_color());
-        let track = Rect::from_min_size(pocket.left_bottom() + vec2(10.0, -10.0), vec2((width - 20.0).max(0.0), 4.0));
-        painter.rect_filled(track, 2.0, crate::theme_color(dark, [197,209,177], [63,57,102]));
+        let track = pocket.shrink2(vec2(5.0, 4.0));
+        painter.rect_filled(track, 9.0, crate::theme_color(dark, [46,73,91], [35,40,74]));
         let filled = Rect::from_min_size(track.min, vec2(track.width() * game.level_progress(), track.height()));
-        painter.rect_filled(filled, 2.0, crate::theme_color(dark, [93,161,71], [82,226,186]));
+        if filled.width() > 0.0 {
+            painter.rect_filled(filled, 8.0, crate::theme_color(dark, [27,99,137], [52,71,166]));
+        }
+        let shine = Rect::from_min_size(track.min + vec2(2.0, 2.0), vec2((track.width() - 4.0).max(0.0), track.height() * 0.43));
+        painter.rect_filled(shine, 7.0, C::from_white_alpha(37));
+        painter.rect_stroke(track, 9.0, egui::Stroke::new(1.0, C::from_white_alpha(95)));
+        let font = FontId::proportional(12.0);
+        painter.text(track.left_center() + vec2(10.0, 0.0), Align2::LEFT_CENTER,
+            format!("Уровень {}", game.level()), font.clone(), C::WHITE);
+        painter.text(track.right_center() - vec2(10.0, 0.0), Align2::RIGHT_CENTER,
+            format!("{} / 100 XP", game.taps % 100), font, C::WHITE);
     });
 }

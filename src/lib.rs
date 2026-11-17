@@ -320,7 +320,9 @@ mod layout_tests {
             let tile = label("Главная");
             let xp = label("Уровень");
             assert!(tile.bottom() < xp.top() && xp.bottom() < height - 14.0);
-            assert!((xp.center().x - width * 0.5).abs() < 2.0);
+            let progress = label("0 / 100 XP");
+            assert!(xp.right() < progress.left() && (xp.center().y - progress.center().y).abs() < 2.0);
+            assert!((xp.left() + progress.right() - width).abs() < 2.0);
         }
     }
     #[test]

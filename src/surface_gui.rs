@@ -11,7 +11,7 @@ fn glyph(c:char)->[u8;7] {match c {
 'С'=>[15,16,16,16,16,16,15],'Т'=>[31,4,4,4,4,4,4],'О'=>[14,17,17,17,17,17,14],'Б'=>[31,16,16,30,17,17,30],
 'Ы'=>[17,17,17,29,21,21,29],'Ч'=>[17,17,17,15,1,1,1],'Д'=>[6,10,10,10,10,31,17],'К'=>[17,18,20,24,20,18,17],
 'Э'=>[30,1,1,15,1,1,30],'Я'=>[15,17,17,15,5,9,17],'И'=>[17,19,21,25,17,17,17],'П'=>[31,17,17,17,17,17,17],'Л'=>[7,9,9,9,9,17,17],_=>[0;7]}}
-pub fn paint(p:&Painter,face:[Pos2;4],lines:&[String],color:Color32,health:Option<f32>) {
+pub fn paint(p:&Painter,face:[Pos2;4],lines:&[String],color:Color32,health:Option<f32>, softened: bool) {
     let warp=|x:f32,y:f32| {let u=x/96.0;let v=y/80.0;let a=face[0].lerp(face[1],u);let b=face[3].lerp(face[2],u);a.lerp(b,v)};
     let mut mesh=Mesh::default();
     for (row,line) in lines.iter().enumerate() {
@@ -27,6 +27,17 @@ pub fn paint(p:&Painter,face:[Pos2;4],lines:&[String],color:Color32,health:Optio
             }
             mesh.indices.extend_from_slice(&[base,base+1,base+2,base,base+2,base+3]);
         }}}
+    }
+    if softened {
+        for offset in [egui::vec2(-0.9, 0.0), egui::vec2(0.9, 0.0), egui::vec2(0.0, -0.9), egui::vec2(0.0, 0.9)] {
+            let mut shadow = mesh.clone();
+            for vertex in &mut shadow.vertices {
+                vertex.pos += offset;
+                vertex.color = vertex.color.gamma_multiply(0.13);
+            }
+            p.add(Shape::mesh(shadow));
+        }
+        for vertex in &mut mesh.vertices { vertex.color = vertex.color.gamma_multiply(0.58); }
     }
     p.add(Shape::mesh(mesh));
     let Some(health) = health else { return; };
