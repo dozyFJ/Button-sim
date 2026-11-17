@@ -6,6 +6,9 @@ pub enum PetKind { Cat, Dog, Bunny, Fox, Dragon, Unicorn }
 impl PetKind {
     pub fn name(self) -> &'static str { match self { Self::Cat=>"Котик", Self::Dog=>"Щенок", Self::Bunny=>"Зайчик", Self::Fox=>"Лисёнок", Self::Dragon=>"Дракон", Self::Unicorn=>"Единорог" } }
     pub fn rarity(self) -> &'static str { match self { Self::Cat|Self::Dog=>"Обычный", Self::Bunny=>"Редкий", Self::Fox=>"Эпический", _=>"Легендарный" } }
+    pub fn damage(self) -> u64 {
+        match self { Self::Cat => 2, Self::Dog => 3, Self::Bunny => 5, Self::Fox => 8, Self::Dragon => 12, Self::Unicorn => 16 }
+    }
     pub fn bonus(self) -> f64 { match self { Self::Cat=>1.2, Self::Dog=>1.3, Self::Bunny=>1.6, Self::Fox=>2.0, Self::Dragon=>3.0, Self::Unicorn=>4.0 } }
     pub fn color(self) -> [u8;3] { match self { Self::Cat=>[124,178,255], Self::Dog=>[227,176,117], Self::Bunny=>[245,186,226], Self::Fox=>[255,139,69], Self::Dragon=>[135,102,242], Self::Unicorn=>[132,246,226] } }
     fn from_id(id: usize) -> Option<Self> { [Self::Cat,Self::Dog,Self::Bunny,Self::Fox,Self::Dragon,Self::Unicorn].get(id).copied() }
@@ -36,18 +39,29 @@ pub struct Game {
     pub grid_size:usize, pub selected_switch:usize, pub switches:Vec<bool>,
     pub interface_open:bool,
     pub dark_mode: bool,
+    switch_damage: Vec<u64>,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,switch_damage:vec![0;1024],
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
     pub fn tap(&mut self) {
         if self.paused||self.hatch.is_some()||self.pets_open||self.interface_open||!self.switch_unlocked(self.selected_switch) { return; }
-        self.multiplier=self.multiplier.saturating_add(1); self.taps=self.taps.saturating_add(1);
-        self.switches[self.selected_switch]=!self.switches[self.selected_switch];
+        self.damage_switch(1, 1);
+    }
+    pub fn switch_max_hp(index: usize) -> u64 { 6 + 2 * index as u64 }
+    pub fn switch_hp(&self, index: usize) -> u64 { Self::switch_max_hp(index) - self.switch_damage[index] }
+    fn damage_switch(&mut self, damage: u64, hits: u64) {
+        let target = self.selected_switch;
+        let max_hp = Self::switch_max_hp(target);
+        let total = self.switch_damage[target].saturating_add(damage);
+        self.switch_damage[target] = total % max_hp;
+        self.multiplier = self.multiplier.saturating_add(total / max_hp);
+        self.taps = self.taps.saturating_add(hits);
+        if hits % 2 == 1 { self.switches[target] = !self.switches[target]; }
     }
     pub fn switch_required_level(index:usize)->u64 { if index<5 {1} else {(index-3) as u64} }
     pub fn switch_unlocked(&self,index:usize)->bool { index<self.grid_size*self.grid_size&&index<self.switches.len()&&self.level()>=Self::switch_required_level(index) }
@@ -68,17 +82,20 @@ impl Game {
         if self.attack_running() {
             let before=self.attack_clock;
             self.attack_clock+=dt;
-            let mut hits=0_u64;
-            for slot in 0..self.equipped_pets.len() {
-                let offset=0.7+slot as f64*0.18;
-                let old=(before-offset).max(0.0).floor() as u64;
-                let new=(self.attack_clock-offset).max(0.0).floor() as u64;
-                hits=hits.saturating_add(new.saturating_sub(old));
+            let mut hits = 0_u64;
+            let mut damage = 0_u64;
+            for (slot, pet) in self.equipped_pets.iter().enumerate() {
+                let offset = 0.7 + slot as f64 * 0.18;
+                let old = (before - offset).max(0.0).floor() as u64;
+                let new = (self.attack_clock - offset).max(0.0).floor() as u64;
+                let pet_hits = new.saturating_sub(old);
+                hits = hits.saturating_add(pet_hits);
+                damage = damage.saturating_add(pet_hits.saturating_mul(self.pets[*pet].damage()));
             }
-            self.multiplier=self.multiplier.saturating_add(hits);
-            self.taps=self.taps.saturating_add(hits);
-            self.auto_hits=self.auto_hits.saturating_add(hits);
-            if hits%2==1 { self.switches[self.selected_switch]=!self.switches[self.selected_switch]; }
+            if hits > 0 {
+                self.damage_switch(damage, hits);
+                self.auto_hits = self.auto_hits.saturating_add(hits);
+            }
         }
     }
     pub fn level(&self)->u64 { self.taps/100+1 }
@@ -179,12 +196,14 @@ impl Game {
     }
     pub fn save_text(&self)->String {
         let pets=self.pets.iter().map(|p|(*p as u8).to_string()).collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n",
+        let damage = self.switch_damage.iter().enumerate().filter(|(_, damage)| **damage > 0)
+            .map(|(index, damage)| format!("{index}:{damage}")).collect::<Vec<_>>().join(",");
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
             pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
             self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
             self.auto_attack,self.auto_hits,self.grid_size,self.selected_switch,
-            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode)
+            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage)
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -222,6 +241,15 @@ impl Game {
             if !g.switch_unlocked(g.selected_switch) {g.selected_switch=0;}
         }
         g.dark_mode = lines.next() == Some("true");
+        if let Some(damage) = lines.next().filter(|line| !line.is_empty()) {
+            for entry in damage.split(',') {
+                let (index, damage) = entry.split_once(':')?;
+                let index: usize = index.parse().ok()?;
+                let damage: u64 = damage.parse().ok()?;
+                if index >= g.switch_damage.len() || damage >= Self::switch_max_hp(index) { return None; }
+                g.switch_damage[index] = damage;
+            }
+        }
         g.grid_size=32;
         Some(g)
     }
@@ -229,7 +257,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test] fn multiplier_increases_passive_income() { let mut g=Game::default();g.tap();g.tick(2.0);assert_eq!(g.coins,4.0); }
+    #[test] fn multiplier_increases_passive_income() { let mut g=Game::default();for _ in 0..6 { g.tap(); } g.tick(2.0);assert_eq!(g.coins,4.0); }
     #[test] fn pause_freezes_economy_and_actions() {
         let mut g=Game{paused:true,coins:20_000.0,..Game::default()};g.tap();g.tick(3.0);
         assert!(!g.upgrade());assert!(!g.rebirth());assert!(!g.buy_capsule(Capsule::Meadow));
@@ -282,13 +310,13 @@ mod tests {
         let mut g=Game::default();assert!(!g.toggle_auto_attack());
         g.pets.push(PetKind::Cat);g.equip_pet(0);assert!(g.toggle_auto_attack());
         g.tick(1.69);assert_eq!(g.auto_hits,0);g.tick(0.02);
-        assert_eq!(g.auto_hits,1);assert_eq!(g.multiplier,2);assert!(g.pet_is_striking(0));
+        assert_eq!(g.auto_hits,1);assert_eq!(g.switch_hp(0),4);assert_eq!(g.multiplier,1);assert!(g.pet_is_striking(0));
     }
     #[test] fn team_hits_are_staggered_and_timestep_independent() {
         let mut a=Game::default();a.pets=vec![PetKind::Cat,PetKind::Dog,PetKind::Bunny];
         for i in 0..3 {a.equip_pet(i);}a.toggle_auto_attack();let mut b=a.clone();
         a.tick(5.1);for _ in 0..510 {b.tick(0.01);}
-        assert_eq!(a.auto_hits,12);assert_eq!(a.auto_hits,b.auto_hits);assert_eq!(a.multiplier,b.multiplier);
+        assert_eq!(a.auto_hits,12);assert_eq!(a.auto_hits,b.auto_hits);assert_eq!(a.multiplier,b.multiplier);assert_eq!(a.switch_hp(0),b.switch_hp(0));
         assert!((a.pet_bonus()-2.1).abs()<0.001);
     }
     #[test] fn pause_inventory_and_hatch_suspend_attacks_without_catchup() {
@@ -318,9 +346,9 @@ mod tests {
     #[test] fn board_state_saves_and_autoattacks_selected_tile() {
         let mut g=Game::default();g.tap_switch(3);assert!(g.switches[3]);
         g.pets.push(PetKind::Cat);g.equip_pet(0);g.toggle_auto_attack();g.tick(1.8);
-        assert!(!g.switches[3]);assert_eq!(g.auto_hits,1);assert!(!g.switches[0]);
+        assert!(!g.switches[3]);assert_eq!(g.switch_hp(3),9);assert_eq!(g.auto_hits,1);assert!(!g.switches[0]);
         g.set_grid_size(32);let restored=Game::from_save(&g.save_text()).unwrap();
-        assert_eq!(restored.grid_size,32);assert_eq!(restored.selected_switch,3);assert_eq!(restored.switches,g.switches);
+        assert_eq!(restored.grid_size,32);assert_eq!(restored.selected_switch,3);assert_eq!(restored.switches,g.switches);assert_eq!(restored.switch_hp(3),9);
         assert!(!g.set_grid_size(16));
     }
 

@@ -3,7 +3,7 @@ use egui::{Color32 as C,Rect,Stroke,Sense,Shape,vec2};
 use crate::game::Game;
 pub fn show(ui:&mut egui::Ui,game:&mut Game) {
     let dark = game.dark_mode;
-    let view=ui.available_rect_before_wrap();ui.painter().rect_filled(view,0.0,crate::theme_color(dark, [121,166,82], [18,29,26]));
+    let view=ui.available_rect_before_wrap();ui.painter().rect_filled(view,0.0,crate::theme_color(dark, [121,166,82], [15,19,40]));
     let columns=(view.width()/155.0).floor().clamp(2.0,6.0) as usize;
     let gap=10.0;let side=(view.width()-16.0-(columns-1) as f32*gap)/columns as f32;
     let height=side*0.86;let count=game.switches.len();let rows=count.div_ceil(columns);
@@ -24,30 +24,36 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 p.add(Shape::convex_polygon(shadow.to_vec(), C::from_black_alpha(38), Stroke::NONE));
                 p.add(Shape::convex_polygon(
                     vec![face[2], face[3], face[3] + depth, face[2] + depth],
-                    crate::theme_color(dark, [125,116,85], [17,26,22]),
+                    crate::theme_color(dark, [125,116,85], [18,18,39]),
                     Stroke::NONE,
                 ));
                 p.add(Shape::convex_polygon(
                     vec![face[1], face[2], face[2] + depth, face[1] + depth],
-                    crate::theme_color(dark, [150,132,90], [29,42,34]),
+                    crate::theme_color(dark, [150,132,90], [49,43,94]),
                     Stroke::NONE,
                 ));
                 let fill = if !unlocked {
-                    crate::theme_color(dark, [165,170,150], [42,49,47])
+                    crate::theme_color(dark, [165,170,150], [40,39,61])
                 } else if game.switches[index] {
-                    crate::theme_color(dark, [140,191,105], [36,91,64])
+                    crate::theme_color(dark, [140,191,105], [29,110,105])
                 } else {
-                    crate::theme_color(dark, [231,190,119], [53,58,46])
+                    crate::theme_color(dark, [231,190,119], [61,48,110])
                 };
                 let border = if selected { C::from_rgb(230,148,36) } else {
-                    crate::theme_color(dark, [104,119,76], [94,110,97])
+                    crate::theme_color(dark, [104,119,76], [124,111,183])
                 };
                 p.add(Shape::convex_polygon(face.to_vec(), fill, Stroke::new(if selected { 3.0 } else { 1.0 }, border)));
                 let highlight = C::from_white_alpha(if dark { 52 } else { 92 });
                 for (y, width) in [(0.0, 13.0), (3.0, 7.0), (6.0, 3.0)] {
                     p.rect_filled(Rect::from_min_size(face[0] + vec2(5.0, 5.0 + y), vec2(width, 3.0)), 0.0, highlight);
                 }
-                crate::surface_gui::paint(p,face,&[format!("#{}",index+1),"ЦЕНА 0".into(),"НАГР +1".into(),format!("УР {}",Game::switch_required_level(index)),format!("Р {}",Game::switch_rarity(index))],crate::theme_color(dark, [45,62,38], [232,239,230]));
+                let max_hp = Game::switch_max_hp(index);
+                let hp = game.switch_hp(index);
+                crate::surface_gui::paint(p, face, &[
+                    format!("#{}", index + 1), format!("{hp}/{max_hp}"), "НАГР +1".into(),
+                    format!("УР {}", Game::switch_required_level(index)),
+                    format!("Р {}", Game::switch_rarity(index)),
+                ], crate::theme_color(dark, [45,62,38], [247,243,255]), hp as f32 / max_hp as f32);
                 if response.clicked() {game.tap_switch(index);}
                 if selected&&!game.equipped_pets.is_empty() {
                     crate::pet_ui::attack_scene(p,Rect::from_center_size(r.center(),r.size()),r.center(),side*0.62,game);

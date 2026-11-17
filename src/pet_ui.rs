@@ -2,7 +2,7 @@ use egui::{Color32 as C, RichText as T, vec2, Rect, Align2, Sense, Stroke, pos2}
 use crate::{game::{Game,Capsule},pet_render,amount};
 const GREEN:C=C::from_rgb(93,161,71);
 fn capsule_card(ui:&mut egui::Ui,game:&mut Game,capsule:Capsule) {
-    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [249,241,214], [31,40,36])).rounding(18.0)
+    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [249,241,214], [32,29,53])).rounding(18.0)
         .inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
             ui.vertical_centered(|ui| {
                 ui.label(T::new(capsule.name()).size(19.0).strong());
@@ -27,12 +27,12 @@ pub fn shop(ui:&mut egui::Ui,game:&mut Game) {
         ui.horizontal(|ui| {for (i,label) in labels.iter().enumerate() {
             let active=selected==i;
             if ui.add(egui::Button::new(T::new(*label).color(if active {C::WHITE} else {ui.visuals().text_color()}))
-                .fill(if active {ui.visuals().selection.bg_fill} else {crate::theme_color(ui.visuals().dark_mode, [239,242,218], [37,49,43])}).rounding(20.0).min_size(vec2(100.0,36.0))).clicked() {selected=i;}
+                .fill(if active {ui.visuals().selection.bg_fill} else {crate::theme_color(ui.visuals().dark_mode, [239,242,218], [42,40,75])}).rounding(20.0).min_size(vec2(100.0,36.0))).clicked() {selected=i;}
         }});
     });
     ui.ctx().data_mut(|d|d.insert_temp(id,selected));
     ui.add_space(10.0);
-    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [225,236,213], [24,34,30])).rounding(22.0).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
+    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [225,236,213], [24,23,42])).rounding(22.0).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
         ui.set_width(ui.available_width());
         ui.label(T::new(labels[selected]).strong());
         egui::ScrollArea::vertical().id_salt(("capsule_list",selected)).show(ui,|ui| {
@@ -49,7 +49,7 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let Some(hatch)=game.hatch.clone() else {return;};
     let elapsed=hatch.elapsed as f32;let reveal=elapsed>=3.0;
     let Some(&pet)=game.pets.get(hatch.inventory_index) else {return;};
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(crate::theme_color(game.dark_mode, [166,207,224], [15,23,24]))).show(ctx,|ui| {
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(crate::theme_color(game.dark_mode, [166,207,224], [14,15,29]))).show(ctx,|ui| {
         let width=ui.available_width();let height=ui.available_height();
         let model_size=(height-160.0).min(width*0.44).clamp(72.0,270.0);
         let content_height=model_size+if reveal {156.0} else {128.0};
@@ -114,15 +114,26 @@ pub fn attack_scene(p:&egui::Painter,rect:Rect,center:egui::Pos2,button_size:f32
                 let v=vec2(angle.cos(),angle.sin());
                 p.line_segment([hit+v*4.0,hit+v*(8.0+phase*70.0)],Stroke::new(2.0,color));
             }
-            p.text(hit-vec2(0.0,18.0+phase*45.0),Align2::CENTER_CENTER,"+1",egui::FontId::proportional(20.0),crate::theme_color(game.dark_mode, [45,65,39], [232,239,230]));
+            p.text(hit-vec2(0.0,18.0+phase*45.0),Align2::CENTER_CENTER,format!("-{}",pet.damage()),egui::FontId::proportional(20.0),crate::theme_color(game.dark_mode, [45,65,39], [232,239,230]));
         }
     }
 }
 
-pub fn auto_attack(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut crate::gui_state::GuiState) {
+pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut crate::gui_state::GuiState) -> Rect {
     let size=vec2(192.0,62.0);
+    let button_size = 42.0;
     egui::Area::new(egui::Id::new("canvas_auto_attack")).order(egui::Order::Foreground)
-        .fixed_pos(workspace.right_bottom()-size-vec2(12.0,12.0)).show(ctx,|ui| {
+        .fixed_pos(workspace.right_bottom()-size-vec2(20.0 + button_size,12.0)).show(ctx,|ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let (button, response) = ui.allocate_exact_size(vec2(button_size, size.y), Sense::click());
+            let dark = ui.visuals().dark_mode;
+            let color = crate::theme_color(dark, [229,198,121], [119,67,211]);
+            ui.painter().circle_filled(button.center(), button_size * 0.5, color);
+            ui.painter().text(button.center(), Align2::CENTER_CENTER, "Р", egui::FontId::proportional(22.0), crate::theme_color(dark, [39,54,41], [255,255,255]));
+            if response.on_hover_text("Множитель и ребёрт").clicked() {
+                state.modal(crate::gui_state::Modal::Rebirths);
+            }
         egui::Frame::none().fill(ctx.style().visuals.panel_fill).rounding(18.0).inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
             ui.set_width(size.x-20.0);
             ui.horizontal(|ui| {
@@ -136,5 +147,6 @@ pub fn auto_attack(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut c
                 }
             });
         });
-    });
+        });
+    }).response.rect
 }

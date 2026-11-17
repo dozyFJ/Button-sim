@@ -1,10 +1,12 @@
 //! Portrait HUD with a compact currency header and centered navigation tiles.
-use egui::{Align2, Color32 as C, FontId, RichText as T, Sense, vec2};
+use egui::{Align2, Color32 as C, FontId, Rect, RichText as T, Sense, pos2, vec2};
 use crate::{amount, game::{Game, Tab}, gui_state::{GuiState, Modal, Panel}, nav_icon};
 
-const GREEN: C = C::from_rgb(93, 161, 71);
 pub const HEADER: f32 = 54.0;
-pub const DOCK: f32 = 106.0;
+const DOCK_ROW: f32 = 70.0;
+const XP_POCKET: f32 = 32.0;
+const BOTTOM_MARGIN: f32 = 14.0;
+pub const DOCK: f32 = DOCK_ROW + XP_POCKET + BOTTOM_MARGIN;
 const TILE: f32 = 54.0;
 const GAP: f32 = 5.0;
 const NAV_ITEMS: usize = 7;
@@ -16,11 +18,11 @@ fn tile(ui: &mut egui::Ui, label: &str, icon: usize, active: bool) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(TILE, TILE), Sense::click());
     let painter = ui.painter();
     let fill = if active {
-        crate::theme_color(dark, [93,161,71], [45,104,72])
+        crate::theme_color(dark, [93,161,71], [103,63,189])
     } else if response.hovered() {
-        crate::theme_color(dark, [216,229,192], [52,67,59])
+        crate::theme_color(dark, [216,229,192], [64,59,108])
     } else {
-        crate::theme_color(dark, [230,233,207], [37,49,43])
+        crate::theme_color(dark, [230,233,207], [42,40,75])
     };
     painter.rect_filled(rect, 9.0, fill);
     let icon_center = rect.center() - vec2(0.0, 8.0);
@@ -96,49 +98,63 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         });
     });
     egui::TopBottomPanel::bottom("portrait_dock").exact_height(DOCK).resizable(false)
-        .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill).inner_margin(egui::Margin::same(8.0))).show(ctx,|ui| {
-        ui.horizontal_centered(|ui| {
-            ui.spacing_mut().item_spacing.x = GAP;
-            let available = ui.available_width();
-            let fit = ((available - 2.0 * ARROW - GAP) / (TILE + GAP)).floor().max(1.0) as usize;
-            let visible = fit.min(NAV_ITEMS);
-            let width = visible as f32 * (TILE + GAP) - GAP;
-            let group_width = width + 2.0 * (ARROW + GAP);
-            ui.add_space((available - group_width).max(0.0) * 0.5);
-            let step = (visible.saturating_sub(1).max(1) as f32) * (TILE + GAP);
-            if ui.add_enabled(state.sidebar_scroll>0.0,egui::Button::new("‹").min_size(vec2(ARROW,TILE))).clicked() {
-                state.sidebar_scroll=(state.sidebar_scroll-step).max(0.0);
-            }
-            ui.allocate_ui(vec2(width,TILE),|ui| {
-                let out=egui::ScrollArea::horizontal().id_salt("portrait_dock_scroll").max_width(width).auto_shrink([false,false]).scroll_offset(vec2(state.sidebar_scroll,0.0))
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui,|ui| {
-                    ui.add_enabled_ui(enabled,|ui| {ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = GAP;
-                        if tile(ui,"Главная",0,game.tab==Tab::Home&&!state.busy()) {state.close();game.tab=Tab::Home;}
-                        if tile(ui,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
-                        if tile(ui,"Апгрейд",2,state.modal==Modal::Upgrades) {state.modal(Modal::Upgrades);}
-                        if tile(ui,"Питомцы",5,state.panel==Panel::Pets) {if state.panel==Panel::Pets {state.close();} else {state.pets();}}
-                        if tile(ui,"Ребёрты",4,state.modal==Modal::Rebirths) {state.modal(Modal::Rebirths);}
-                        if tile(ui,"Настройки",6,state.modal==Modal::Settings) {state.modal(Modal::Settings);}
-                        if tile(ui,"Магазин",7,state.modal==Modal::Shop) {state.modal(Modal::Shop);}
-                    });});
+        .frame(egui::Frame::none()).show(ctx, |ui| {
+        let dock = ui.available_rect_before_wrap();
+        ui.allocate_rect(dock, Sense::hover());
+        let dark = ui.visuals().dark_mode;
+        let strip = Rect::from_min_size(dock.min, vec2(dock.width(), DOCK_ROW));
+        let fill = ui.visuals().panel_fill;
+        ui.painter().rect_filled(dock, 0.0, crate::theme_color(dark, [213,223,186], [14,15,29]));
+        ui.painter().rect_filled(strip, 0.0, fill);
+
+        let controls = 2.0 * (ARROW + GAP);
+        let fit = ((strip.width() - 16.0 - controls + GAP) / (TILE + GAP)).floor().max(1.0) as usize;
+        let visible = fit.min(NAV_ITEMS);
+        let viewport_width = visible as f32 * (TILE + GAP) - GAP;
+        let center = strip.center();
+        let viewport = Rect::from_center_size(center, vec2(viewport_width, TILE));
+        let left = Rect::from_min_size(viewport.left_top() - vec2(ARROW + GAP, 0.0), vec2(ARROW, TILE));
+        let right = Rect::from_min_size(viewport.right_top() + vec2(GAP, 0.0), vec2(ARROW, TILE));
+        let max_offset = (NAV_ITEMS - visible) as f32 * (TILE + GAP);
+        let step = (visible.saturating_sub(1).max(1) as f32) * (TILE + GAP);
+        let left_clicked = ui.put(left, egui::Button::new("‹").sense(if state.sidebar_scroll > 0.0 { Sense::click() } else { Sense::hover() })).clicked();
+        let right_clicked = ui.put(right, egui::Button::new("›").sense(if state.sidebar_scroll < max_offset { Sense::click() } else { Sense::hover() })).clicked();
+        if left_clicked { state.sidebar_scroll = (state.sidebar_scroll - step).max(0.0); }
+        if right_clicked { state.sidebar_scroll = (state.sidebar_scroll + step).min(max_offset); }
+
+        ui.allocate_ui_at_rect(viewport, |ui| {
+            ui.set_clip_rect(ui.clip_rect().intersect(viewport));
+            ui.set_width(viewport_width);
+            let out = egui::ScrollArea::horizontal().id_salt("portrait_dock_scroll")
+                .max_width(viewport_width).max_height(TILE).auto_shrink([false, false])
+                .scroll_offset(vec2(state.sidebar_scroll.min(max_offset), 0.0))
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                .show(ui, |ui| {
+                    ui.add_enabled_ui(enabled, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = GAP;
+                            if tile(ui,"Главная",0,game.tab==Tab::Home&&!state.busy()) {state.close();game.tab=Tab::Home;}
+                            if tile(ui,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
+                            if tile(ui,"Апгрейд",2,state.modal==Modal::Upgrades) {state.modal(Modal::Upgrades);}
+                            if tile(ui,"Питомцы",5,state.panel==Panel::Pets) {if state.panel==Panel::Pets {state.close();} else {state.pets();}}
+                            if tile(ui,"Ребёрты",4,state.modal==Modal::Rebirths) {state.modal(Modal::Rebirths);}
+                            if tile(ui,"Настройки",6,state.modal==Modal::Settings) {state.modal(Modal::Settings);}
+                            if tile(ui,"Магазин",7,state.modal==Modal::Shop) {state.modal(Modal::Shop);}
+                        });
+                    });
                 });
-                state.sidebar_scroll=out.state.offset.x;state.sidebar_max=(out.content_size.x-out.inner_rect.width()).max(0.0);
-            });
-            if ui.add_enabled(state.sidebar_scroll<state.sidebar_max,egui::Button::new("›").min_size(vec2(ARROW,TILE))).clicked() {state.sidebar_scroll=(state.sidebar_scroll+step).min(state.sidebar_max);}
+            state.sidebar_scroll = out.state.offset.x;
         });
-        ui.vertical_centered(|ui| {
-            let xp = format!("Уровень {}  ·  {} / 100 XP", game.level(), game.taps % 100);
-            let width = (ui.available_width() * 0.62).clamp(130.0, 230.0);
-            let (pocket, _) = ui.allocate_exact_size(vec2(width, 30.0), Sense::hover());
-            let dark = ui.visuals().dark_mode;
-            let painter = ui.painter();
-            painter.rect_filled(pocket, 11.0, crate::theme_color(dark, [230,233,207], [37,49,43]));
-            painter.text(pocket.center() - vec2(0.0, 4.0), Align2::CENTER_CENTER, xp, FontId::proportional(12.0), ui.visuals().text_color());
-            let track = egui::Rect::from_min_size(pocket.left_bottom() + vec2(8.0,-8.0), vec2((width-16.0).max(0.0), 3.0));
-            painter.rect_filled(track, 1.5, crate::theme_color(dark, [197,209,177], [58,74,65]));
-            let filled = egui::Rect::from_min_size(track.min, vec2(track.width()*game.level_progress(), track.height()));
-            painter.rect_filled(filled, 1.5, GREEN);
-        });
+
+        let width = (dock.width() * 0.62).min(230.0);
+        let pocket = Rect::from_min_size(pos2(dock.center().x - width * 0.5, strip.bottom()), vec2(width, XP_POCKET));
+        let painter = ui.painter();
+        painter.rect_filled(pocket, egui::Rounding { nw: 0.0, ne: 0.0, sw: 12.0, se: 12.0 }, fill);
+        let xp = format!("Уровень {}  ·  {} / 100 XP", game.level(), game.taps % 100);
+        painter.text(pocket.center() - vec2(0.0, 5.0), Align2::CENTER_CENTER, xp, FontId::proportional(12.0), ui.visuals().text_color());
+        let track = Rect::from_min_size(pocket.left_bottom() + vec2(10.0, -10.0), vec2((width - 20.0).max(0.0), 4.0));
+        painter.rect_filled(track, 2.0, crate::theme_color(dark, [197,209,177], [63,57,102]));
+        let filled = Rect::from_min_size(track.min, vec2(track.width() * game.level_progress(), track.height()));
+        painter.rect_filled(filled, 2.0, crate::theme_color(dark, [93,161,71], [82,226,186]));
     });
 }

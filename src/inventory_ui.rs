@@ -37,7 +37,7 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
                 for row in filtered.chunks(columns) {ui.horizontal(|ui| {ui.spacing_mut().item_spacing.x=3.0;
                     for &index in row {
                         let pet=game.pets[index];let (r,response)=ui.allocate_exact_size(vec2(tile-3.0,94.0),Sense::click());let p=ui.painter();let selected=state.selected_pet==Some(index);let equipped=game.equipped_pets.contains(&index);
-                        p.rect_filled(r,0.0,crate::theme_color(ui.visuals().dark_mode, [230,235,207], [40,53,46]));p.rect_stroke(r,0.0,Stroke::new(if selected {3.0_f32} else {1.0_f32},if selected {C::from_rgb(221,166,52)} else {crate::theme_color(ui.visuals().dark_mode, [153,173,117], [94,110,97])}));
+                        p.rect_filled(r,0.0,crate::theme_color(ui.visuals().dark_mode, [230,235,207], [43,39,72]));p.rect_stroke(r,0.0,Stroke::new(if selected {3.0_f32} else {1.0_f32},if selected {C::from_rgb(221,166,52)} else {crate::theme_color(ui.visuals().dark_mode, [153,173,117], [105,91,162])}));
                         pet_render::pet(p,Rect::from_min_max(r.min+vec2(5.0,3.0),r.max-vec2(5.0,30.0)),pet,game.played_seconds as f32);
                         p.text(r.left_top()+vec2(5.0,5.0),Align2::LEFT_TOP,(index+1).to_string(),egui::FontId::proportional(9.0),ui.visuals().text_color());
                         if equipped {p.circle_filled(r.right_top()+vec2(-8.0,8.0),4.0,GREEN);}
@@ -53,7 +53,8 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
                 if let Some(index)=state.selected_pet.filter(|&i|i<game.pets.len()) {
                     let pet=game.pets[index];ui.label(T::new(pet.name()).size(18.0).strong());
                     let (r,_)=ui.allocate_exact_size(vec2(ui.available_width(),85.0),Sense::hover());pet_render::pet(ui.painter(),r,pet,game.played_seconds as f32);
-                    ui.label(format!("{} · доход ×{:.1}",pet.rarity(),pet.bonus()));ui.separator();
+                    ui.label(format!("{} · доход ×{:.1}",pet.rarity(),pet.bonus()));
+                    ui.label(format!("Сила · {} урона", pet.damage()));ui.separator();
                     ui.add_enabled_ui(!game.paused&&state.pending.is_none(),|ui| {
                         let equipped=game.equipped_pets.contains(&index);
                         let label=if equipped {"Снять"} else if game.equipped_pets.len()==3 {"Надеть · заменить 3-го"} else {"Надеть"};

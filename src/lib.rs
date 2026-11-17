@@ -103,11 +103,36 @@ fn theme_color(dark: bool, light: [u8; 3], night: [u8; 3]) -> egui::Color32 {
 
 fn apply_theme(ctx: &egui::Context, dark: bool) {
     let mut visuals = if dark { egui::Visuals::dark() } else { egui::Visuals::light() };
-    visuals.panel_fill = theme_color(dark, [246,238,211], [24,31,29]);
-    visuals.window_fill = theme_color(dark, [250,244,222], [31,40,36]);
-    visuals.selection.bg_fill = theme_color(dark, [93,161,71], [51,103,74]);
-    visuals.override_text_color = Some(theme_color(dark, [39,54,41], [232,239,230]));
+    visuals.panel_fill = theme_color(dark, [246,238,211], [24,23,42]);
+    visuals.window_fill = theme_color(dark, [250,244,222], [32,29,53]);
+    visuals.selection.bg_fill = theme_color(dark, [93,161,71], [83,56,166]);
+    visuals.override_text_color = Some(theme_color(dark, [39,54,41], [241,237,255]));
     ctx.set_visuals(visuals);
+}
+
+fn board_swipe_right(
+    ctx: &egui::Context, field: egui::Rect, controls: egui::Rect,
+    start: &mut Option<(egui::TouchId, egui::Pos2)>,
+) -> bool {
+    ctx.input(|input| {
+        for event in &input.events {
+            let egui::Event::Touch { id, phase, pos, .. } = event else { continue; };
+            match phase {
+                egui::TouchPhase::Start if field.contains(*pos) && !controls.contains(*pos) => {
+                    *start = Some((*id, *pos));
+                }
+                egui::TouchPhase::End | egui::TouchPhase::Cancel if start.is_some_and(|(touch, _)| touch == *id) => {
+                    let (_, origin) = start.take().unwrap();
+                    let delta = *pos - origin;
+                    if *phase == egui::TouchPhase::End && delta.x >= 55.0 && delta.x >= 1.65 * delta.y.abs() {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    })
 }
 
 fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
@@ -132,7 +157,7 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     game.pets_open=state.panel==Panel::Pets;game.interface_open=state.busy();
     let workspace=ctx.available_rect();
     let blocked=game.paused||game.hatch.is_some()||game.interface_open;
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(theme_color(game.dark_mode, [166,207,224], [15,23,24])).inner_margin(egui::Margin::same(if game.tab==game::Tab::Capsules {10.0} else {0.0}))).show(ctx,|ui| {
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(theme_color(game.dark_mode, [166,207,224], [14,15,29])).inner_margin(egui::Margin::same(if game.tab==game::Tab::Capsules {10.0} else {0.0}))).show(ctx,|ui| {
         ui.add_enabled_ui(!blocked,|ui| {
             if game.tab==game::Tab::Capsules {
                 pet_ui::shop(ui,game);
@@ -141,7 +166,14 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     });
     panels_ui::draw(ctx,workspace,game,&mut state);
     inventory_ui::draw(ctx,workspace,game,&mut state);
-    if game.tab==game::Tab::Home&&!blocked {pet_ui::auto_attack(ctx,workspace,game,&mut state);}
+    if game.tab == game::Tab::Home && !blocked {
+        let controls = pet_ui::board_controls(ctx, workspace, game, &mut state);
+        if !state.busy() && board_swipe_right(ctx, workspace, controls, &mut state.board_swipe) {
+            state.modal(Modal::Rebirths);
+        }
+    } else {
+        state.board_swipe = None;
+    }
     let mut update_requested=false;
     if game.paused {
         let rect=Rect::from_center_size(workspace.center(),vec2((workspace.width()-24.0).min(350.0),(workspace.height()-24.0).min(260.0)));
@@ -275,6 +307,16 @@ mod layout_tests {
             assert!((scene.top()-sidebar_ui::HEADER).abs()<2.0,"header {scene:?}");
             assert!((scene.bottom()-(height-sidebar_ui::DOCK)).abs()<2.0,"dock {scene:?}");
             assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Автоатака")));
+            let label = |prefix: &str| out.shapes.iter().find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text.starts_with(prefix) => {
+                    Some(egui::Rect::from_min_size(text.pos, text.galley.size()))
+                }
+                _ => None,
+            }).unwrap();
+            let tile = label("Главная");
+            let xp = label("Уровень");
+            assert!(tile.bottom() < xp.top() && xp.bottom() < height - 14.0);
+            assert!((xp.center().x - width * 0.5).abs() < 2.0);
         }
     }
     #[test] fn profile_and_inventory_are_context_frames_to_the_right_of_navigation() {

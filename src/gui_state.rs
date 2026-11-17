@@ -9,7 +9,8 @@ pub enum PetAction {Delete(usize),Craft(usize)}
 pub struct GuiState {
     pub panel:Panel,pub modal:Modal,pub profile_stats:bool,
     pub search:String,pub pet_tab:usize,pub rarity:usize,pub selected_pet:Option<usize>,pub pending:Option<PetAction>,
-    pub sidebar_scroll:f32,pub sidebar_max:f32,
+    pub sidebar_scroll:f32,
+    pub board_swipe: Option<(egui::TouchId, egui::Pos2)>,
 }
 impl GuiState {
     pub fn load(ctx:&Context)->Self {ctx.data_mut(|d|d.get_temp::<Self>(Id::new("game_gui"))).unwrap_or_default()}
