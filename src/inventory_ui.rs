@@ -14,8 +14,14 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
             egui::ComboBox::from_id_salt("pet_rarity_filter").selected_text(["Все","Обычные","Редкие","Эпические","Легендарные"][state.rarity]).show_ui(ui,|ui| {for (i,title) in ["Все","Обычные","Редкие","Эпические","Легендарные"].into_iter().enumerate() {ui.selectable_value(&mut state.rarity,i,title);}});
         });ui.separator();
         if state.selected_pet.is_none_or(|i|i>=game.pets.len()) {state.selected_pet=if game.pets.is_empty() {None} else {Some(0)};}
-        let body=ui.available_rect_before_wrap();let detail_width=(body.width()*0.30).clamp(165.0,260.0);let split=body.right()-detail_width-10.0;
-        let left=Rect::from_min_max(body.min,pos2(split,body.bottom()));let right=Rect::from_min_max(pos2(split+10.0,body.top()),body.max);
+        let body=ui.available_rect_before_wrap();
+        let (left,right)=if body.width()<520.0 {
+            let split=body.top()+body.height()*0.48;
+            (Rect::from_min_max(body.min,pos2(body.right(),split)),Rect::from_min_max(pos2(body.left(),split+8.0),body.max))
+        } else {
+            let detail_width=(body.width()*0.30).clamp(165.0,260.0);let split=body.right()-detail_width-10.0;
+            (Rect::from_min_max(body.min,pos2(split,body.bottom())),Rect::from_min_max(pos2(split+10.0,body.top()),body.max))
+        };
         ui.allocate_ui_at_rect(left,|ui| {
             ui.set_clip_rect(left);let query=state.search.trim().to_lowercase();
             let filtered:Vec<usize>=game.pets.iter().enumerate().filter_map(|(i,&pet)| {

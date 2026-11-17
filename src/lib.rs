@@ -147,7 +147,7 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.gfx.is_some() { return; }
         let window = self.window.get_or_insert_with(|| Arc::new(event_loop.create_window(
-            Window::default_attributes().with_title("Button Sim").with_inner_size(winit::dpi::LogicalSize::new(960.0, 540.0))
+            Window::default_attributes().with_title("Button Sim").with_inner_size(winit::dpi::LogicalSize::new(420.0, 860.0))
         ).expect("window"))).clone();
         let gpu = GpuContext::new(window.clone(), true, false).expect("WolfCraft GPU");
         let egui = egui::Context::default();
@@ -256,13 +256,14 @@ mod layout_tests {
     fn render(ctx:&egui::Context,game:&mut game::Game,width:f32,height:f32)->egui::FullOutput {
         ctx.run(egui::RawInput{screen_rect:Some(egui::Rect::from_min_size(egui::Pos2::ZERO,egui::vec2(width,height))),..Default::default()},|ctx|{ui(ctx,game,None);})
     }
-    #[test] fn one_left_sidebar_and_full_height_workspace() {
-        for (width,height) in [(640.0,360.0),(800.0,360.0),(960.0,540.0),(1280.0,720.0)] {
+    #[test] fn portrait_header_dock_leave_a_full_width_playfield() {
+        for (width,height) in [(360.0,740.0),(390.0,844.0),(430.0,932.0),(540.0,960.0)] {
             let ctx=egui::Context::default();let mut game=game::Game::default();render(&ctx,&mut game,width,height);let out=render(&ctx,&mut game,width,height);
             let scene=out.shapes.iter().find_map(|s|match &s.shape {egui::Shape::Rect(r) if r.fill==egui::Color32::from_rgb(166,207,224)=>Some(r.rect),_=>None}).expect("workspace");
-            assert!((scene.left()-sidebar_ui::width(width)).abs()<1.0,"scene {scene:?}, expected sidebar {}",sidebar_ui::width(width));assert!(scene.top()<1.0);assert!((scene.bottom()-height).abs()<1.0);assert!(scene.right()>=width-1.0);
-            assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Mesh(m) if m.vertices.len()>256)),"button information should be face geometry");
-            assert!(!out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="8×8"||t.galley.job.text=="32×32")),"map modes must be absent");
+            assert!(scene.left()<1.0&&scene.right()>=width-1.0,"full width {scene:?}");
+            assert!((scene.top()-sidebar_ui::HEADER).abs()<2.0,"header {scene:?}");
+            assert!((scene.bottom()-(height-sidebar_ui::DOCK)).abs()<2.0,"dock {scene:?}");
+            assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Автоатака")));
         }
     }
     #[test] fn profile_and_inventory_are_context_frames_to_the_right_of_navigation() {
