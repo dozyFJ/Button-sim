@@ -9,7 +9,7 @@ const BOTTOM_MARGIN: f32 = 14.0;
 pub const DOCK: f32 = DOCK_ROW + XP_POCKET + BOTTOM_MARGIN;
 const TILE: f32 = 54.0;
 const GAP: f32 = 5.0;
-const NAV_ITEMS: usize = 7;
+const NAV_ITEMS: usize = 6;
 const ARROW: f32 = 24.0;
 
 fn tile(ui: &mut egui::Ui, width: f32, label: &str, icon: usize, active: bool) -> bool {
@@ -132,7 +132,6 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                             if tile(ui,tile_width,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
                             if tile(ui,tile_width,"Апгрейд",2,state.modal==Modal::Upgrades) {state.modal(Modal::Upgrades);}
                             if tile(ui,tile_width,"Питомцы",5,state.panel==Panel::Pets) {if state.panel==Panel::Pets {state.close();} else {state.pets();}}
-                            if tile(ui,tile_width,"Ребёрты",4,game.tab==Tab::Rebirths&&!state.busy()) {state.close();game.tab=Tab::Rebirths;}
                             if tile(ui,tile_width,"Настройки",6,state.modal==Modal::Settings) {state.modal(Modal::Settings);}
                             if tile(ui,tile_width,"Магазин",7,state.modal==Modal::Shop) {state.modal(Modal::Shop);}
                         });
