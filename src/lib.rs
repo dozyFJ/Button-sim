@@ -158,8 +158,8 @@ fn apply_theme(ctx: &egui::Context, dark: bool) {
 }
 
 const FIELD_PAGES: [(game::Tab, &str); 3] = [
-    (game::Tab::Home, "Множитель"),
     (game::Tab::Rebirths, "Ребёрты"),
+    (game::Tab::Home, "Множитель"),
     (game::Tab::Capsules, "Яйца"),
 ];
 
@@ -476,9 +476,9 @@ mod layout_tests {
         let mut game = game::Game::default();
         render(&ctx, &mut game, 360.0, 740.0);
         for (start, end, expected) in [
-            (250.0, 100.0, game::Tab::Rebirths),
-            (250.0, 100.0, game::Tab::Capsules),
             (100.0, 250.0, game::Tab::Rebirths),
+            (250.0, 100.0, game::Tab::Home),
+            (250.0, 100.0, game::Tab::Capsules),
             (100.0, 250.0, game::Tab::Home),
         ] {
             let events = [(TouchPhase::Start, start), (TouchPhase::End, end)].into_iter()
