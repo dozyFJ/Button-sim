@@ -121,19 +121,8 @@ pub fn attack_scene(p:&egui::Painter,rect:Rect,center:egui::Pos2,button_size:f32
 
 pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut crate::gui_state::GuiState) -> Rect {
     let size=vec2(192.0,62.0);
-    let button_size = 42.0;
     egui::Area::new(egui::Id::new("canvas_auto_attack")).order(egui::Order::Foreground)
-        .fixed_pos(workspace.right_bottom()-size-vec2(20.0 + button_size,12.0)).show(ctx,|ui| {
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-            let (button, response) = ui.allocate_exact_size(vec2(button_size, size.y), Sense::click());
-            let dark = ui.visuals().dark_mode;
-            let color = crate::theme_color(dark, [229,198,121], [119,67,211]);
-            ui.painter().circle_filled(button.center(), button_size * 0.5, color);
-            ui.painter().text(button.center(), Align2::CENTER_CENTER, "Р", egui::FontId::proportional(22.0), crate::theme_color(dark, [39,54,41], [255,255,255]));
-            if response.on_hover_text("Множитель и ребёрт").clicked() {
-                state.modal(crate::gui_state::Modal::Rebirths);
-            }
+        .fixed_pos(workspace.right_bottom()-size-vec2(12.0,12.0)).show(ctx,|ui| {
         egui::Frame::none().fill(ctx.style().visuals.panel_fill).rounding(18.0).inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
             ui.set_width(size.x-20.0);
             ui.horizontal(|ui| {
@@ -146,7 +135,6 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
                     if game.equipped_pets.is_empty() {state.pets();} else {game.toggle_auto_attack();}
                 }
             });
-        });
         });
     }).response.rect
 }
