@@ -1,27 +1,88 @@
 use egui::{Color32 as C, RichText as T, vec2, Rect, Align2, Sense, Stroke, pos2};
 use crate::{game::{Game,Capsule},pet_render,amount};
 const GREEN:C=C::from_rgb(93,161,71);
+const EGG_COUNTS: [usize; 4] = [1, 3, 5, 10];
+
 fn egg_card(ui: &mut egui::Ui, game: &mut Game, egg: Capsule) {
     let width = ui.available_width();
     let dark = ui.visuals().dark_mode;
-    egui::Frame::none().fill(crate::theme_color(dark, [249,241,214], [27,49,91]))
-        .stroke(Stroke::new(1.0_f32, crate::theme_color(dark, [201,190,151], [81,103,156])))
-        .rounding(10.0).inner_margin(egui::Margin::same(6.0)).show(ui, |ui| {
-        ui.set_width((width - 12.0).max(0.0));
-        ui.vertical_centered(|ui| {
-            ui.label(T::new(egg.name()).size(13.0).strong());
-            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 82.0), Sense::hover());
-            pet_render::egg_preview(ui.painter(), rect, egg == Capsule::Neon, game.played_seconds as f32, 0.0);
-            for (pet, chance) in egg.drops() {
-                ui.label(T::new(format!("{} {}%", pet.name(), chance)).size(10.0));
-            }
-            let label = format!("Купить · {}", amount(egg.price()));
-            if ui.add_enabled(game.coins >= egg.price() && game.pets.len() < 1000,
+    ui.push_id(egg == Capsule::Neon, |ui| {
+        let quantity_id = ui.id().with("quantity");
+        let expanded_id = ui.id().with("expanded");
+        let luck_id = ui.id().with("luck");
+        let mut quantity = ui.ctx().data_mut(|data| data.get_temp::<usize>(quantity_id)).unwrap_or(0);
+        let mut luck = ui.ctx().data_mut(|data| data.get_temp::<u8>(luck_id)).unwrap_or(0);
+        let mut expanded = ui.ctx().data_mut(|data| data.get_temp::<bool>(expanded_id)).unwrap_or(false);
+        egui::Frame::none().fill(crate::theme_color(dark, [249,241,214], [27,49,91]))
+            .stroke(Stroke::new(1.0_f32, crate::theme_color(dark, [201,190,151], [81,103,156])))
+            .rounding(10.0).inner_margin(egui::Margin::same(8.0)).show(ui, |ui| {
+            ui.set_width((width - 16.0).max(0.0));
+            let header = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), 80.0));
+            let preview = Rect::from_min_size(header.min, vec2((header.width() * 0.34).min(78.0), 76.0));
+            let info = Rect::from_min_max(pos2(preview.right() + 7.0, header.top() + 5.0), header.max);
+            let details = ui.interact(header, ui.id().with("details"), Sense::click());
+            if details.on_hover_text("Содержимое яйца").clicked() { expanded = !expanded; }
+            pet_render::egg_preview(ui.painter(), preview, egg == Capsule::Neon, game.played_seconds as f32, 0.0);
+            ui.allocate_ui_at_rect(info, |ui| {
+                ui.set_clip_rect(ui.clip_rect().intersect(info));
+                ui.label(T::new(egg.name()).size(14.0).strong());
+                ui.label(T::new(format!("{} за яйцо", amount(egg.price_with_luck(luck)))).size(11.0));
+                ui.label(T::new(if expanded { "Свернуть питомцев ‹" } else { "Посмотреть питомцев ›" }).size(10.0));
+            });
+            ui.allocate_rect(header, Sense::hover());
+            ui.horizontal(|ui| {
+                ui.label(T::new(format!("Кол-во ×{}", EGG_COUNTS[quantity])).size(11.0));
+                ui.spacing_mut().slider_width = (ui.available_width() - 4.0).clamp(34.0, 100.0);
+                ui.add(egui::Slider::new(&mut quantity, 0..=EGG_COUNTS.len() - 1).show_value(false))
+                    .on_hover_text("Количество яиц");
+            });
+            ui.horizontal(|ui| {
+                ui.label(T::new(format!("Удача {luck}/5")).size(11.0));
+                ui.spacing_mut().slider_width = (ui.available_width() - 4.0).clamp(34.0, 100.0);
+                ui.add(egui::Slider::new(&mut luck, 0..=5).show_value(false))
+                    .on_hover_text("Повышает шанс редких питомцев и цену яйца");
+            });
+            let count = EGG_COUNTS[quantity];
+            let cost = egg.price_with_luck(luck) * count as f64;
+            let label = format!("Купить ×{count} · {}", amount(cost));
+            if ui.add_enabled(game.coins >= cost && count <= 1000usize.saturating_sub(game.pets.len()),
                 egui::Button::new(T::new(label).size(11.0)).fill(ui.visuals().selection.bg_fill)
                     .min_size(vec2(ui.available_width(), 31.0))).clicked()
             {
-                game.buy_capsule(egg);
+                game.buy_eggs(egg, count, luck);
             }
+            if expanded {
+                ui.separator();
+                for pair in egg.drops_with_luck(luck).chunks(2) {
+                    ui.columns(2, |columns| {
+                        for (column, &(pet, chance)) in columns.iter_mut().zip(pair) {
+                            pet_slot(column, pet, &format!("{chance}%"), game.played_seconds as f32);
+                        }
+                    });
+                    ui.add_space(4.0);
+                }
+            }
+        });
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(quantity_id, quantity);
+            data.insert_temp(luck_id, luck);
+            data.insert_temp(expanded_id, expanded);
+        });
+    });
+}
+
+fn pet_slot(ui: &mut egui::Ui, pet: crate::game::PetKind, detail: &str, time: f32) {
+    let width = ui.available_width();
+    let dark = ui.visuals().dark_mode;
+    egui::Frame::none().fill(crate::theme_color(dark, [230,235,207], [27,47,86]))
+        .stroke(Stroke::new(1.0_f32, crate::theme_color(dark, [153,173,117], [88,123,181])))
+        .rounding(5.0).inner_margin(egui::Margin::same(3.0)).show(ui, |ui| {
+        ui.set_width((width - 6.0).max(0.0));
+        ui.vertical_centered(|ui| {
+            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 53.0), Sense::hover());
+            pet_render::pet(ui.painter(), rect, pet, time);
+            ui.label(T::new(pet.name()).size(10.0));
+            ui.label(T::new(detail).size(10.0));
         });
     });
 }
@@ -97,12 +158,38 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let Some(&pet)=game.pets.get(hatch.inventory_index) else {return;};
     egui::CentralPanel::default().frame(egui::Frame::none().fill(crate::theme_color(game.dark_mode, [166,207,224], [10,20,39]))).show(ctx,|ui| {
         let width=ui.available_width();let height=ui.available_height();
+        if reveal && hatch.count > 1 {
+            ui.vertical_centered(|ui| {
+                ui.add_space(20.0);
+                ui.heading(format!("Питомцы из яиц ×{}", hatch.count));
+            });
+            let results = &game.pets[hatch.inventory_index..hatch.inventory_index + hatch.count];
+            egui::ScrollArea::vertical().max_height((height - 155.0).max(0.0)).show(ui, |ui| {
+                for row in results.chunks(3) {
+                    ui.columns(3, |columns| {
+                        for (column, &pet) in columns.iter_mut().zip(row) {
+                            pet_slot(column, pet, pet.rarity(), elapsed);
+                        }
+                    });
+                    ui.add_space(5.0);
+                }
+            });
+            ui.vertical_centered(|ui| {
+                let controls = width.min(360.0) - 24.0;
+                if ui.add_sized(vec2(controls,38.0), egui::Button::new("Надеть лучшего")).clicked() { game.finish_hatch(true); }
+                if ui.add_sized(vec2(controls,34.0), egui::Button::new("В коллекцию")).clicked() { game.finish_hatch(false); }
+            });
+            return;
+        }
         let model_size=(height-160.0).min(width*0.44).clamp(72.0,270.0);
         let content_height=model_size+if reveal {156.0} else {128.0};
         ui.add_space(((height-content_height)*0.5).max(0.0));
         ui.vertical_centered(|ui| {
             ui.label(T::new(if reveal {"НОВЫЙ ПИТОМЕЦ!"} else {"ОТКРЫТИЕ ЯЙЦА"}).size(19.0).strong());
-            ui.label(T::new(if reveal {pet.name()} else {hatch.capsule.name()}).size(23.0).strong());
+            let title = if reveal { pet.name().to_owned() } else if hatch.count > 1 {
+                format!("{} ×{}", hatch.capsule.name(), hatch.count)
+            } else { hatch.capsule.name().to_owned() };
+            ui.label(T::new(title).size(23.0).strong());
             let (r,_)=ui.allocate_exact_size(vec2(model_size,model_size),Sense::hover());
             if reveal {pet_render::pet(ui.painter(),r,pet,elapsed);} else {
                 pet_render::egg_preview(ui.painter(),r,hatch.capsule==Capsule::Neon,elapsed,if elapsed<0.7 {0.0} else {((elapsed-0.7)*7.0).min(10.0)});

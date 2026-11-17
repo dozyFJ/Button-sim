@@ -21,17 +21,32 @@ pub enum Capsule { Meadow, Neon }
 impl Capsule {
     pub fn name(self)-> &'static str { match self { Self::Meadow=>"Луговое яйцо",Self::Neon=>"Солнечное яйцо" } }
     pub fn price(self)->f64 { match self { Self::Meadow=>250.0,Self::Neon=>2500.0 } }
-    pub fn drops(self)-> &'static [(PetKind,u8)] { match self {
+    pub fn drops(self)-> &'static [(PetKind,u8); 4] { match self {
         Self::Meadow=>&[(PetKind::Cat,45),(PetKind::Dog,35),(PetKind::Bunny,17),(PetKind::Fox,3)],
         Self::Neon=>&[(PetKind::Bunny,45),(PetKind::Fox,35),(PetKind::Dragon,17),(PetKind::Unicorn,3)] } }
-    fn roll(self, roll:u64)->PetKind {
-        let mut threshold=0;
-        for &(pet,weight) in self.drops() { threshold+=weight as u64; if roll%100<threshold { return pet; } }
+    pub fn price_with_luck(self, luck: u8) -> f64 {
+        self.price() + self.price() * f64::from(luck.min(5)) / 5.0
+    }
+    pub fn drops_with_luck(self, luck: u8) -> [(PetKind, u8); 4] {
+        let luck = luck.min(5);
+        let mut drops = *self.drops();
+        drops[0].1 -= 2 * luck;
+        drops[1].1 -= 2 * luck;
+        drops[2].1 += 3 * luck;
+        drops[3].1 += luck;
+        drops
+    }
+    fn roll(self, roll: u64, luck: u8) -> PetKind {
+        let mut threshold = 0;
+        for (pet, weight) in self.drops_with_luck(luck) {
+            threshold += u64::from(weight);
+            if roll % 100 < threshold { return pet; }
+        }
         self.drops()[0].0
     }
 }
 #[derive(Debug, Clone)]
-pub struct Hatch { pub capsule:Capsule, pub inventory_index:usize, pub elapsed:f64 }
+pub struct Hatch { pub capsule:Capsule, pub inventory_index:usize, pub count:usize, pub elapsed:f64 }
 #[derive(Debug, Clone)]
 pub struct ActiveBoost {
     pub name: String,
@@ -210,12 +225,25 @@ impl Game {
         self.coins=0.0; self.multiplier=1; self.base_income=1.0; self.upgrades=0;
         self.rebirths=self.rebirths.saturating_add(1); self.rebirth_damage=0; self.attack_clock=0.0; true
     }
-    pub fn buy_capsule(&mut self,capsule:Capsule)->bool {
-        if self.paused||self.hatch.is_some()||self.pets.len()>=1000||self.coins<capsule.price() { return false; }
-        self.rng^=self.rng<<13; self.rng^=self.rng>>7; self.rng^=self.rng<<17;
-        self.coins-=capsule.price(); let index=self.pets.len();
-        self.pets.push(capsule.roll(self.rng));
-        self.hatch=Some(Hatch{capsule,inventory_index:index,elapsed:0.0}); true
+    pub fn buy_capsule(&mut self, capsule: Capsule) -> bool {
+        self.buy_eggs(capsule, 1, 0)
+    }
+    pub fn buy_eggs(&mut self, egg: Capsule, count: usize, luck: u8) -> bool {
+        if self.paused || self.hatch.is_some() || !(1..=10).contains(&count) || luck > 5 || count > 1000usize.saturating_sub(self.pets.len()) {
+            return false;
+        }
+        let price = egg.price_with_luck(luck) * count as f64;
+        if self.coins < price { return false; }
+        let index = self.pets.len();
+        for _ in 0..count {
+            self.rng ^= self.rng << 13;
+            self.rng ^= self.rng >> 7;
+            self.rng ^= self.rng << 17;
+            self.pets.push(egg.roll(self.rng, luck));
+        }
+        self.coins -= price;
+        self.hatch = Some(Hatch { capsule: egg, inventory_index: index, count, elapsed: 0.0 });
+        true
     }
     pub fn equip_pet(&mut self,index:usize)->bool {
         if self.paused||index>=self.pets.len() { return false; }
@@ -293,8 +321,15 @@ impl Game {
     pub fn finish_hatch(&mut self,equip:bool)->bool {
         let Some(h)=&self.hatch else { return false; };
         if self.paused||h.elapsed<3.0 { return false; }
-        let index=h.inventory_index; self.hatch=None;
-        if equip { self.equip_pet(index); } true
+        let first = h.inventory_index;
+        let last = first + h.count;
+        self.hatch = None;
+        if equip {
+            if let Some(index) = (first..last).max_by_key(|&index| self.pets[index].damage()) {
+                self.equip_pet(index);
+            }
+        }
+        true
     }
     pub fn save_text(&self)->String {
         let pets=self.pets.iter().map(|p|(*p as u8).to_string()).collect::<Vec<_>>().join(",");
@@ -405,9 +440,26 @@ mod tests {
         g.tick(3.0);assert!(g.finish_hatch(true));assert_eq!(g.equipped_pet,Some(0));
         assert_eq!(g.pet_bonus(),g.pets[0].bonus());assert!(!g.equip_pet(2));
     }
+    #[test]
+    fn lucky_egg_batches_use_the_displayed_price_and_odds() {
+        let egg = Capsule::Meadow;
+        let mut game = Game::default();
+        game.coins = 1_499.0;
+        assert!(!game.buy_eggs(egg, 3, 5));
+        assert!(game.pets.is_empty());
+        game.coins = 1_500.0;
+        assert!(game.buy_eggs(egg, 3, 5));
+        assert_eq!(game.coins, 0.0);
+        assert_eq!(game.pets.len(), 3);
+        assert_eq!(game.hatch.as_ref().unwrap().count, 3);
+        for (pet, chance) in egg.drops_with_luck(5) {
+            assert_eq!((0..100).filter(|&roll| egg.roll(roll, 5) == pet).count(), usize::from(chance));
+        }
+    }
+
     #[test] fn displayed_drop_weights_match_every_roll() {
         for c in [Capsule::Meadow,Capsule::Neon] { for &(pet,w) in c.drops() {
-            assert_eq!((0..100).filter(|&r|c.roll(r)==pet).count(),w as usize);
+            assert_eq!((0..100).filter(|&r|c.roll(r, 0)==pet).count(),w as usize);
         } }
     }
     #[test] fn pause_freezes_hatch_and_rebirth_keeps_pets() {
