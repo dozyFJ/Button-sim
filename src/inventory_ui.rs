@@ -46,7 +46,7 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
     let available = ui.available_rect_before_wrap();
     let width = available.width();
     let height = (available.height() * 0.42).clamp(125.0, 170.0).min(available.height().max(58.0));
-    let (card, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+    let card = Rect::from_min_size(available.min, vec2(width, height));
     let split = card.left() + (width * 0.37).min(240.0);
     let left = Rect::from_min_max(card.min, pos2(split, card.bottom()));
     let right = Rect::from_min_max(pos2(split + 9.0, card.top()), card.max);
@@ -120,6 +120,7 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
     painter.text(track.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER,
         format!("Ур. {} · {} / 100 XP", xp / 100 + 1, xp % 100),
         egui::FontId::proportional(12.0), ui.visuals().text_color());
+    ui.allocate_rect(card, Sense::hover());
 }
 
 fn filters(ui: &mut egui::Ui, game: &Game, state: &mut GuiState) {
