@@ -70,9 +70,9 @@ fn nav_icon(p: &egui::Painter, center: egui::Pos2, index: usize, color: egui::Co
             p.rect_stroke(Rect::from_center_size(center + vec2(0.0, 4.0), vec2(15.0, 14.0)), 2.0, s);
         }
         1 => {
-            p.rect_stroke(Rect::from_center_size(center, vec2(17.0, 25.0)), 8.0, s);
-            p.line_segment([center + vec2(-8.0, 0.0), center + vec2(8.0, 0.0)], s);
-            p.circle_filled(center, 3.0, color);
+            let points = [(0.0,-11.0), (5.0,-9.0), (9.0,-2.0), (9.0,5.0), (5.0,10.0),
+                (-5.0,10.0), (-9.0,5.0), (-9.0,-2.0), (-5.0,-9.0), (0.0,-11.0)];
+            p.add(egui::Shape::line(points.into_iter().map(|(x, y)| center + vec2(x, y)).collect(), s));
         }
         2 => {
             p.line_segment([center + vec2(0.0, 11.0), center + vec2(0.0, -10.0)], s);
@@ -451,13 +451,30 @@ mod layout_tests {
         let collection = label("Инвентарь 1/1000");
         assert!(xp.x > rarity.x && xp.y < collection.y && rarity.y < collection.y, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
     }
+    #[test]
+    fn egg_shop_shows_categories_left_of_two_card_columns() {
+        let ctx = egui::Context::default();
+        let mut game = game::Game::default();
+        game.tab = game::Tab::Capsules;
+        render(&ctx, &mut game, 360.0, 740.0);
+        let out = render(&ctx, &mut game, 360.0, 740.0);
+        let label = |name: &str| out.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.job.text == name => Some(text.pos),
+            _ => None,
+        }).unwrap();
+        let category = label("Редкие");
+        let meadow = label("Луговое яйцо");
+        let sun = label("Солнечное яйцо");
+        assert!(category.x < meadow.x && meadow.x < sun.x);
+        assert!((meadow.y - sun.y).abs() < 2.0);
+    }
     #[test] fn hatch_hides_game_gui_and_centers_the_scene() {
         for elapsed in [1.5,3.1] {
             let ctx=egui::Context::default();let mut g=game::Game::default();g.coins=500.0;g.buy_capsule(game::Capsule::Meadow);g.hatch.as_mut().unwrap().elapsed=elapsed;
             render(&ctx,&mut g,960.0,540.0);let out=render(&ctx,&mut g,960.0,540.0);
             let texts:Vec<_>=out.shapes.iter().filter_map(|s|match &s.shape {egui::Shape::Text(t)=>Some(t.galley.job.text.as_str()),_=>None}).collect();
             assert!(!texts.iter().any(|t|["Главная","МОЙ ПРОФИЛЬ","Автоатака"].contains(t)));
-            assert!(texts.contains(&if elapsed<3.0 {"ОТКРЫТИЕ КАПСУЛЫ"} else {"НОВЫЙ ПИТОМЕЦ!"}));
+            assert!(texts.contains(&if elapsed<3.0 {"ОТКРЫТИЕ ЯЙЦА"} else {"НОВЫЙ ПИТОМЕЦ!"}));
             let background=out.shapes.iter().find_map(|s|match &s.shape {egui::Shape::Rect(r) if r.fill==egui::Color32::from_rgb(166,207,224)=>Some(r.rect),_=>None}).unwrap();
             assert!(background.left()<1.0&&background.width()>959.0);
         }

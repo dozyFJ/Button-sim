@@ -153,7 +153,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = GAP;
                             if tile(ui,tile_width,"Главная",0,game.tab==Tab::Home&&!state.busy()) {state.close();game.tab=Tab::Home;}
-                            if tile(ui,tile_width,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
+                            if tile(ui,tile_width,"Яйца",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
                             if tile(ui,tile_width,"Апгрейд",2,state.modal==Modal::Upgrades) {state.modal(Modal::Upgrades);}
                             if tile(ui,tile_width,"Питомцы",5,state.panel==Panel::Pets) {if state.panel==Panel::Pets {state.close();} else {state.pets();}}
                             if tile(ui,tile_width,"Настройки",6,state.modal==Modal::Settings) {state.modal(Modal::Settings);}

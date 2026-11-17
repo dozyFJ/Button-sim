@@ -153,8 +153,8 @@ fn grid(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState) {
         matches.then_some(index)
     }).collect();
     if filtered.is_empty() {
-        ui.label(if game.pets.is_empty() { "Нет питомцев. Открой капсулу." } else { "По запросу ничего не найдено." });
-        if game.pets.is_empty() && ui.button("К капсулам").clicked() { state.close(); game.tab = Tab::Capsules; }
+        ui.label(if game.pets.is_empty() { "Нет питомцев. Открой яйцо." } else { "По запросу ничего не найдено." });
+        if game.pets.is_empty() && ui.button("К яйцам").clicked() { state.close(); game.tab = Tab::Capsules; }
         return;
     }
     let width = ui.available_width() - 10.0;

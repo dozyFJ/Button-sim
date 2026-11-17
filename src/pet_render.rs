@@ -88,16 +88,12 @@ pub fn pet(p:&Painter,rect:Rect,kind:PetKind,time:f32) {
     let bob=(time*2.2).sin()*rect.height()*0.025;
     draw(p,rect.translate(vec2(0.0,bob)),faces,0.35+(time*0.7).sin()*0.28,rect.width().min(rect.height())*0.32,false);
 }
-pub fn capsule(p:&Painter,rect:Rect,neon:bool,time:f32,shake:f32) {
-    let tint=if neon {[236,166,76]} else {[132,184,94]};
-    let mut shell=Vec::new();
-    cube(&mut shell,[0.0,-0.91,0.0],[0.92,0.13,0.7],tint);
-    for x in [-0.88,0.88] { cube(&mut shell,[x,0.0,0.0],[0.06,0.83,0.52],tint); }
-    cube(&mut shell,[0.0,0.88,0.0],[0.94,0.12,0.65],tint);
-    let yaw=0.3+(time*0.5).sin()*0.2;
-    let scale=rect.width().min(rect.height())*0.38;
-    draw(p,rect,shell,yaw,scale,false);
-    let mut model=Vec::new();egg(&mut model,[0.0,0.0,0.1],0.72,tint);
-    let offset=vec2((time*43.0).sin()*shake,(time*31.0).cos()*shake*0.4);
-    draw(p,rect.translate(offset),model,yaw+(time*35.0).sin()*shake*0.015,scale,false);
+pub fn egg_preview(p: &Painter, rect: Rect, neon: bool, time: f32, shake: f32) {
+    let tint = if neon { [236,166,76] } else { [132,184,94] };
+    let mut model = Vec::new();
+    egg(&mut model, [0.0,0.0,0.1], 0.88, tint);
+    let yaw = 0.3 + (time * 0.5).sin() * 0.2;
+    let offset = vec2((time * 43.0).sin() * shake, (time * 31.0).cos() * shake * 0.4);
+    draw(p, rect.translate(offset), model, yaw + (time * 35.0).sin() * shake * 0.015,
+        rect.width().min(rect.height()) * 0.47, false);
 }

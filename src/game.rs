@@ -19,7 +19,7 @@ impl PetKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Capsule { Meadow, Neon }
 impl Capsule {
-    pub fn name(self)-> &'static str { match self { Self::Meadow=>"Луговая капсула",Self::Neon=>"Солнечная капсула" } }
+    pub fn name(self)-> &'static str { match self { Self::Meadow=>"Луговое яйцо",Self::Neon=>"Солнечное яйцо" } }
     pub fn price(self)->f64 { match self { Self::Meadow=>250.0,Self::Neon=>2500.0 } }
     pub fn drops(self)-> &'static [(PetKind,u8)] { match self {
         Self::Meadow=>&[(PetKind::Cat,45),(PetKind::Dog,35),(PetKind::Bunny,17),(PetKind::Fox,3)],

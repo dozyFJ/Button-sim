@@ -1,49 +1,92 @@
 use egui::{Color32 as C, RichText as T, vec2, Rect, Align2, Sense, Stroke, pos2};
 use crate::{game::{Game,Capsule},pet_render,amount};
 const GREEN:C=C::from_rgb(93,161,71);
-fn capsule_card(ui:&mut egui::Ui,game:&mut Game,capsule:Capsule) {
-    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [249,241,214], [32,29,53])).rounding(18.0)
-        .inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
-            ui.vertical_centered(|ui| {
-                ui.label(T::new(capsule.name()).size(19.0).strong());
-                let (r,_)=ui.allocate_exact_size(vec2(125.0,135.0),Sense::hover());
-                pet_render::capsule(ui.painter(),r,capsule==Capsule::Neon,game.played_seconds as f32,0.0);
-                ui.horizontal_wrapped(|ui| {for &(pet,chance) in capsule.drops() {
-                    ui.label(T::new(format!("{} {}%",pet.name(),chance)).size(10.0));
-                }});
-                if ui.add_enabled(game.coins>=capsule.price()&&game.pets.len()<1000,
-                    egui::Button::new(T::new(format!("Купить · {} денег",amount(capsule.price()))).strong().color(C::WHITE))
-                    .fill(ui.visuals().selection.bg_fill).rounding(0.0).min_size(vec2(ui.available_width(),38.0))).clicked() {game.buy_capsule(capsule);}
-                if game.pets.len()>=1000 {ui.label("Коллекция заполнена");}
-            });
-        });
-}
-pub fn shop(ui:&mut egui::Ui,game:&mut Game) {
-    ui.heading("Капсулы");
-    let id=egui::Id::new("capsule_rarity");
-    let mut selected=ui.ctx().data_mut(|d|d.get_temp::<usize>(id)).unwrap_or(0);
-    let labels=["Все","Обычные","Редкие","Эпические","Легендарные"];
-    egui::ScrollArea::horizontal().id_salt("capsule_pills").show(ui,|ui| {
-        ui.horizontal(|ui| {for (i,label) in labels.iter().enumerate() {
-            let active=selected==i;
-            if ui.add(egui::Button::new(T::new(*label).color(if active {C::WHITE} else {ui.visuals().text_color()}))
-                .fill(if active {ui.visuals().selection.bg_fill} else {crate::theme_color(ui.visuals().dark_mode, [239,242,218], [42,40,75])}).rounding(20.0).min_size(vec2(100.0,36.0))).clicked() {selected=i;}
-        }});
-    });
-    ui.ctx().data_mut(|d|d.insert_temp(id,selected));
-    ui.add_space(10.0);
-    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [225,236,213], [24,23,42])).rounding(22.0).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
-        ui.set_width(ui.available_width());
-        ui.label(T::new(labels[selected]).strong());
-        egui::ScrollArea::vertical().id_salt(("capsule_list",selected)).show(ui,|ui| {
-            for capsule in [Capsule::Meadow,Capsule::Neon] {
-                if selected==0||capsule.drops().iter().any(|(pet,_)|match selected {1=>pet.rarity()=="Обычный",2=>pet.rarity()=="Редкий",3=>pet.rarity()=="Эпический",_=>pet.rarity()=="Легендарный"}) {
-                    capsule_card(ui,game,capsule);ui.add_space(10.0);
-                }
+fn egg_card(ui: &mut egui::Ui, game: &mut Game, egg: Capsule) {
+    let width = ui.available_width();
+    let dark = ui.visuals().dark_mode;
+    egui::Frame::none().fill(crate::theme_color(dark, [249,241,214], [33,44,81]))
+        .stroke(Stroke::new(1.0_f32, crate::theme_color(dark, [201,190,151], [81,103,156])))
+        .rounding(10.0).inner_margin(egui::Margin::same(6.0)).show(ui, |ui| {
+        ui.set_width((width - 12.0).max(0.0));
+        ui.vertical_centered(|ui| {
+            ui.label(T::new(egg.name()).size(13.0).strong());
+            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 82.0), Sense::hover());
+            pet_render::egg_preview(ui.painter(), rect, egg == Capsule::Neon, game.played_seconds as f32, 0.0);
+            for (pet, chance) in egg.drops() {
+                ui.label(T::new(format!("{} {}%", pet.name(), chance)).size(10.0));
+            }
+            let label = format!("Купить · {}", amount(egg.price()));
+            if ui.add_enabled(game.coins >= egg.price() && game.pets.len() < 1000,
+                egui::Button::new(T::new(label).size(11.0)).fill(ui.visuals().selection.bg_fill)
+                    .min_size(vec2(ui.available_width(), 31.0))).clicked()
+            {
+                game.buy_capsule(egg);
             }
         });
     });
 }
+
+pub fn shop(ui: &mut egui::Ui, game: &mut Game) {
+    let category_id = egui::Id::new("egg_category");
+    let search_id = egui::Id::new("egg_search");
+    let mut category = ui.ctx().data_mut(|data| data.get_temp::<usize>(category_id)).unwrap_or(0);
+    let mut search = ui.ctx().data_mut(|data| data.get_temp::<String>(search_id)).unwrap_or_default();
+    let mut close = false;
+    ui.horizontal(|ui| {
+        let (icon, _) = ui.allocate_exact_size(vec2(24.0, 32.0), Sense::hover());
+        crate::nav_icon(ui.painter(), icon.center(), 1, ui.visuals().text_color());
+        ui.label(T::new("Яйца").size(19.0).strong());
+        let (icon, _) = ui.allocate_exact_size(vec2(17.0, 30.0), Sense::hover());
+        let center = icon.center() - vec2(1.0, 2.0);
+        let stroke = Stroke::new(1.5_f32, ui.visuals().text_color());
+        ui.painter().circle_stroke(center, 4.5, stroke);
+        ui.painter().line_segment([center + vec2(3.5,3.5), center + vec2(7.0,7.0)], stroke);
+        let width = (ui.available_width() - 40.0).max(30.0);
+        ui.add(egui::TextEdit::singleline(&mut search).hint_text("Поиск").desired_width(width));
+        close = ui.add_sized(vec2(30.0, 30.0), egui::Button::new("×")).on_hover_text("Закрыть").clicked();
+    });
+    ui.ctx().data_mut(|data| data.insert_temp(search_id, search.clone()));
+    if close { game.tab = crate::game::Tab::Home; return; }
+    ui.separator();
+
+    let body = ui.available_rect_before_wrap();
+    let sidebar_width = (body.width() * 0.27).clamp(75.0, 145.0);
+    let sidebar = Rect::from_min_size(body.min, vec2(sidebar_width, body.height()));
+    let content = Rect::from_min_max(pos2(sidebar.right() + 7.0, body.top()), body.max);
+    ui.allocate_ui_at_rect(sidebar, |ui| {
+        ui.set_clip_rect(ui.clip_rect().intersect(sidebar));
+        ui.set_width(sidebar_width);
+        egui::ScrollArea::vertical().id_salt("egg_categories").max_height(body.height()).show(ui, |ui| {
+            for (index, title) in ["Все", "Обычные", "Редкие", "Эпические", "Легендарные"].into_iter().enumerate() {
+                if ui.add_sized(vec2(sidebar_width, 34.0), egui::Button::new(T::new(title).size(11.0)).selected(category == index)).clicked() {
+                    category = index;
+                }
+            }
+        });
+    });
+    ui.ctx().data_mut(|data| data.insert_temp(category_id, category));
+    ui.allocate_ui_at_rect(content, |ui| {
+        ui.set_clip_rect(ui.clip_rect().intersect(content));
+        ui.set_width(content.width());
+        let query = search.trim().to_lowercase();
+        let eggs: Vec<_> = [Capsule::Meadow, Capsule::Neon].into_iter().filter(|egg| {
+            let has_rarity = category == 0 || egg.drops().iter().any(|(pet, _)| usize::from(pet.evolution_tier().min(4)) == category);
+            let matches = egg.name().to_lowercase().contains(&query) || egg.drops().iter().any(|(pet, _)| pet.name().to_lowercase().contains(&query));
+            has_rarity && matches
+        }).collect();
+        egui::ScrollArea::vertical().id_salt("egg_cards").max_height(body.height()).show(ui, |ui| {
+            if eggs.is_empty() { ui.label("Яйца не найдены"); }
+            for pair in eggs.chunks(2) {
+                ui.columns(2, |columns| {
+                    for (column, &egg) in columns.iter_mut().zip(pair) { egg_card(column, game, egg); }
+                });
+                ui.add_space(6.0);
+            }
+            if game.pets.len() >= 1000 { ui.label("Коллекция заполнена"); }
+        });
+    });
+}
+
 /// A dedicated scene: no sidebar, game field, windows or dialog background.
 pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let Some(hatch)=game.hatch.clone() else {return;};
@@ -55,11 +98,11 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
         let content_height=model_size+if reveal {156.0} else {128.0};
         ui.add_space(((height-content_height)*0.5).max(0.0));
         ui.vertical_centered(|ui| {
-            ui.label(T::new(if reveal {"НОВЫЙ ПИТОМЕЦ!"} else {"ОТКРЫТИЕ КАПСУЛЫ"}).size(19.0).strong());
+            ui.label(T::new(if reveal {"НОВЫЙ ПИТОМЕЦ!"} else {"ОТКРЫТИЕ ЯЙЦА"}).size(19.0).strong());
             ui.label(T::new(if reveal {pet.name()} else {hatch.capsule.name()}).size(23.0).strong());
             let (r,_)=ui.allocate_exact_size(vec2(model_size,model_size),Sense::hover());
             if reveal {pet_render::pet(ui.painter(),r,pet,elapsed);} else {
-                pet_render::capsule(ui.painter(),r,hatch.capsule==Capsule::Neon,elapsed,if elapsed<0.7 {0.0} else {((elapsed-0.7)*7.0).min(10.0)});
+                pet_render::egg_preview(ui.painter(),r,hatch.capsule==Capsule::Neon,elapsed,if elapsed<0.7 {0.0} else {((elapsed-0.7)*7.0).min(10.0)});
             }
             let controls=width.min(360.0)-24.0;
             if reveal {

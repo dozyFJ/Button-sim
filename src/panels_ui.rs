@@ -70,8 +70,8 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
                     });
                     if ui.button("Пауза и обновление игры").clicked() {state.close();game.paused=true;}
                 } else if modal==Modal::Shop {
-                    ui.label("Капсулы за игровые деньги");
-                    if ui.button("Перейти к капсулам").clicked() {state.close();game.tab=crate::game::Tab::Capsules;}
+                    ui.label("Яйца за игровые деньги");
+                    if ui.button("Перейти к яйцам").clicked() {state.close();game.tab=crate::game::Tab::Capsules;}
                     ui.separator();
                     for capsule in [crate::game::Capsule::Meadow,crate::game::Capsule::Neon] {
                         ui.label(T::new(capsule.name()).strong());
