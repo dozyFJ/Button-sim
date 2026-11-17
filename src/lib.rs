@@ -346,7 +346,7 @@ mod layout_tests {
         }
     }
     #[test]
-    fn second_board_shows_rebirths_and_current_page() {
+    fn second_board_shows_rebirth_tiles_without_auto_attack() {
         let ctx = egui::Context::default();
         let mut game = game::Game::default();
         game.tab = game::Tab::Rebirths;
@@ -357,7 +357,6 @@ mod layout_tests {
             _ => None,
         }).collect();
         assert!(labels.contains(&"Плитки ребёрта"));
-        assert!(labels.contains(&"2/2"));
         assert!(!labels.contains(&"Автоатака"));
     }
     #[test] fn profile_and_inventory_are_context_frames_to_the_right_of_navigation() {

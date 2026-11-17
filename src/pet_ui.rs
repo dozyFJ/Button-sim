@@ -121,30 +121,21 @@ pub fn attack_scene(p:&egui::Painter,rect:Rect,center:egui::Pos2,button_size:f32
 
 pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut crate::gui_state::GuiState) -> Rect {
     let first_page = game.tab == crate::game::Tab::Home;
-    let width: f32 = if first_page { 254.0 } else { 126.0 };
-    let size = vec2(width.min((workspace.width() - 16.0).max(0.0)), 54.0);
+    let width: f32 = if first_page { 220.0 } else { 72.0 };
+    let size = vec2(width.min((workspace.width() - 16.0).max(0.0)), 50.0);
     egui::Area::new(egui::Id::new("canvas_page_controls")).order(egui::Order::Foreground)
         .fixed_pos(workspace.right_bottom() - size - vec2(8.0, 8.0)).show(ctx, |ui| {
         egui::Frame::none().fill(ctx.style().visuals.panel_fill).rounding(14.0).inner_margin(egui::Margin::same(8.0)).show(ui, |ui| {
+            ui.set_width((size.x - 16.0).max(0.0));
             ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    let mut page = if first_page { 1 } else { 2 };
-                    ui.horizontal(|ui| {
-                        for number in 1..=2 {
-                            let (rect, response) = ui.allocate_exact_size(vec2(16.0, 18.0), Sense::click());
-                            let ink = ui.visuals().text_color().gamma_multiply(if page == number { 1.0 } else { 0.42 });
-                            ui.painter().circle_filled(rect.center(), if page == number { 3.5 } else { 2.5 }, ink);
-                            if response.on_hover_text(if number == 1 { "Множитель" } else { "Ребёрты" }).clicked() {
-                                page = number;
-                            }
-                        }
-                        ui.label(T::new(format!("{page}/2")).size(11.0));
-                    });
-                    ui.spacing_mut().slider_width = 74.0;
-                    ui.add(egui::Slider::new(&mut page, 1..=2).show_value(false))
-                        .on_hover_text("Множитель / Ребёрты");
-                    game.tab = if page == 1 { crate::game::Tab::Home } else { crate::game::Tab::Rebirths };
-                });
+                ui.spacing_mut().item_spacing.x = 3.0;
+                for (tab, label) in [(crate::game::Tab::Home, "Множитель"), (crate::game::Tab::Rebirths, "Ребёрты")] {
+                    let active = game.tab == tab;
+                    let (rect, response) = ui.allocate_exact_size(vec2(24.0, 34.0), Sense::click());
+                    let ink = ui.visuals().text_color().gamma_multiply(if active { 1.0 } else { 0.42 });
+                    ui.painter().circle_filled(rect.center(), if active { 4.0 } else { 3.0 }, ink);
+                    if response.on_hover_text(label).clicked() { game.tab = tab; }
+                }
                 if !first_page { return; }
                 ui.separator();
                 ui.vertical(|ui| {ui.label(T::new("Автоатака").strong());ui.label(T::new(if game.auto_attack {"Вкл"} else {"Выкл"}).size(11.0));});
