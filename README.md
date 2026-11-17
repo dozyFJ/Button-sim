@@ -1,6 +1,6 @@
 # Button Sim
 
-Landscape Android clicker with a compact top header, integrated navigation, a cartoon ground field, 3D pets and team auto attacks.
+Landscape Android clicker with a compact top header, centered navigation including pets, an isometric drag-and-zoom ground canvas, 3D pets and team auto attacks.
 
 Download **button-sim-release.apk** from [latest-apk](https://github.com/dozyFJ/Button-sim/releases/tag/latest-apk).
 Install the native OTA shell once, then use **Pause → Обновить игру (OTA)** to download compatible game cores and restart.

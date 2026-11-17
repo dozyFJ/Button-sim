@@ -1,5 +1,5 @@
 use egui::{Color32 as C, RichText as T, vec2, Rect, Align2, Sense, Stroke, pos2};
-use crate::{game::{Game,Capsule},pet_render,amount,cartoon_card};
+use crate::{game::{Game,Capsule},pet_render,amount};
 const INK:C=C::from_rgb(39,54,41);
 const GREEN:C=C::from_rgb(93,161,71);
 fn capsule_card(ui:&mut egui::Ui,game:&mut Game,capsule:Capsule) {
@@ -27,17 +27,6 @@ pub fn shop(ui:&mut egui::Ui,game:&mut Game) {
 }
 pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let screen=ctx.screen_rect();
-    if game.hatch.is_none()&&!game.pets_open&&!game.paused {
-        egui::Area::new(egui::Id::new("pets_float")).anchor(Align2::RIGHT_BOTTOM,vec2(-12.0,-12.0)).order(egui::Order::Foreground).show(ctx,|ui| {
-            let (r,response)=ui.allocate_exact_size(vec2(88.0,54.0),Sense::click());
-            cartoon_card(ui.painter(),r.shrink(3.0),GREEN);
-            let c=r.center()-vec2(0.0,8.0);
-            ui.painter().circle_filled(c+vec2(0.0,4.0),6.0,GREEN);
-            for v in [vec2(-9.0,-4.0),vec2(0.0,-9.0),vec2(9.0,-4.0)] {ui.painter().circle_filled(c+v,3.5,GREEN);}
-            ui.painter().text(r.center()+vec2(0.0,17.0),Align2::CENTER_CENTER,"Питомцы",egui::FontId::proportional(12.0),INK);
-            if response.clicked() {game.pets_open=true;}
-        });
-    }
     if game.pets_open {
         let mut open=true;
         let rect=Rect::from_min_max(screen.left_top()+vec2(16.0,118.0),screen.right_bottom()-vec2(16.0,10.0));

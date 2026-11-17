@@ -4,6 +4,7 @@ mod pet_render;
 mod pet_ui;
 mod updates;
 mod board_ui;
+mod isometric;
 mod save_format;
 
 use std::{sync::Arc, time::Instant};
@@ -54,12 +55,6 @@ fn amount(n: f64) -> String {
     else { format!("{:.0}", n.floor()) }
 }
 
-fn cartoon_card(p: &egui::Painter, r: egui::Rect, accent: egui::Color32) {
-    use egui::{Color32 as C, Stroke, vec2};
-    p.rect_filled(r.translate(vec2(0.0, 3.0)), 0.0, C::from_rgb(82, 91, 61));
-    p.rect_filled(r, 0.0, C::from_rgb(249, 241, 214));
-    p.rect_stroke(r, 0.0, Stroke::new(2.0, accent));
-}
 
 fn nav_icon(p: &egui::Painter, center: egui::Pos2, index: usize, color: egui::Color32) {
     use egui::{vec2, Rect, Stroke};
@@ -84,6 +79,10 @@ fn nav_icon(p: &egui::Painter, center: egui::Pos2, index: usize, color: egui::Co
             for (x, h) in [(-8.0, 9.0), (0.0, 16.0), (8.0, 23.0)] {
                 p.rect_filled(Rect::from_min_size(center + vec2(x - 2.0, 11.0 - h), vec2(4.0, h)), 1.0, color);
             }
+        }
+        5 => {
+            p.circle_filled(center+vec2(0.0,5.0),6.0,color);
+            for v in [vec2(-9.0,-3.0),vec2(0.0,-8.0),vec2(9.0,-3.0)] {p.circle_filled(center+v,3.5,color);}
         }
         _ => {
             p.circle_stroke(center, 10.0, s);
@@ -161,19 +160,23 @@ fn ui(ctx: &egui::Context, game: &mut game::Game, update_error: Option<&str>) ->
             ui.painter().rect_filled(track,0.0,C::from_rgb(196,205,172));
             if game.level_progress()>0.0 {ui.painter().rect_filled(Rect::from_min_size(track.min,vec2(track.width()*game.level_progress(),track.height())),0.0,green);}
             ui.painter().text(xp.center(),Align2::CENTER_CENTER,format!("УРОВЕНЬ {} · {}/100 XP",game.level(),game.taps%100),FontId::proportional(9.0),navy);
-            ui.add_enabled_ui(!blocked&&!game.paused,|ui| {
-                ui.spacing_mut().item_spacing.x=4.0;
-                ui.columns(5,|cols| {
-                    for (i,(label,tab)) in [("Главная",game::Tab::Home),("Капсулы",game::Tab::Capsules),("Улучшения",game::Tab::Upgrades),("Статистика",game::Tab::Statistics),("Ребёрты",game::Tab::Rebirths)].into_iter().enumerate() {
-                        let col=&mut cols[i];let (rect,response)=col.allocate_exact_size(vec2(col.available_width(),30.0),Sense::click());
-                        let active=game.tab==tab;let fg=if active {C::WHITE} else {navy};
-                        col.painter().rect_filled(rect,0.0,if active {green} else {C::from_rgb(225,224,202)});
-                        nav_icon(col.painter(),rect.left_center()+vec2(18.0,0.0),i,fg);
-                        col.painter().text(rect.center()+vec2(12.0,0.0),Align2::CENTER_CENTER,label,FontId::proportional(if width<700.0 {10.0} else {12.0}),fg);
-                        if response.clicked() {game.tab=tab;}
-                    }
-                });
-            });
+            let (menu_row,_) = ui.allocate_exact_size(vec2(ui.available_width(),30.0),Sense::hover());
+            let strip_width=menu_row.width().min(760.0);
+            let start=menu_row.center().x-strip_width*0.5;
+            let cell_width=(strip_width-5.0*4.0)/6.0;
+            let menu_enabled=!game.paused&&game.hatch.is_none();
+            for (i,label) in ["Главная","Капсулы","Улучшения","Статистика","Ребёрты","Питомцы"].into_iter().enumerate() {
+                let tab=[game::Tab::Home,game::Tab::Capsules,game::Tab::Upgrades,game::Tab::Statistics,game::Tab::Rebirths].get(i).copied();
+                let active=if i==5 {game.pets_open} else {!game.pets_open&&tab==Some(game.tab)};
+                let rect=Rect::from_min_size(pos2(start+i as f32*(cell_width+4.0),menu_row.top()),vec2(cell_width,30.0));
+                let fg=if active {C::WHITE} else {navy};
+                ui.painter().rect_filled(rect,0.0,if active {green} else {C::from_rgb(225,224,202)});
+                nav_icon(ui.painter(),rect.left_center()+vec2(15.0,0.0),i,fg);
+                ui.painter().text(rect.center()+vec2(12.0,0.0),Align2::CENTER_CENTER,label,FontId::proportional(if width<800.0 {10.0} else {11.0}),fg);
+                if menu_enabled&&ui.interact(rect,ui.id().with(("header_menu",i)),Sense::click()).clicked() {
+                    if i==5 {game.pets_open=!game.pets_open;} else if let Some(tab)=tab {game.tab=tab;game.pets_open=false;}
+                }
+            }
         });
 
     egui::CentralPanel::default().frame(egui::Frame::none().fill(C::from_rgb(166, 207, 224)).inner_margin(egui::Margin::same(if game.tab == game::Tab::Home {0.0} else {10.0})))
@@ -384,9 +387,21 @@ mod layout_tests {
                 assert!(scene.top()>=100.0&&scene.top()<=116.0,"header height: {scene:?}");
                 assert!((scene.bottom()-height).abs()<1.0,"unexpected bottom dock: {scene:?}");
                 assert!(scene.height()>=height*0.65,"scene too small: {scene:?}");
+                let menu:Vec<_>=output.shapes.iter().filter_map(|shape|match &shape.shape {
+                    egui::Shape::Rect(rect) if (rect.rect.height()-30.0).abs()<0.1&&rect.rect.top()>60.0&&rect.rect.bottom()<110.0=>Some(rect.rect),_=>None
+                }).collect();
+                assert_eq!(menu.len(),6,"expected six items in the header");
+                let left=menu.iter().map(|r|r.left()).fold(f32::INFINITY,f32::min);
+                let right=menu.iter().map(|r|r.right()).fold(f32::NEG_INFINITY,f32::max);
+                assert!(((left+right)*0.5-width*0.5).abs()<1.0,"menu is not centered");
+                let pets:Vec<_>=output.shapes.iter().filter_map(|shape|match &shape.shape {
+                    egui::Shape::Text(text) if text.galley.job.text=="Питомцы"=>Some(text.pos),_=>None
+                }).collect();
+                assert_eq!(pets.len(),1,"pets should have one entry point");
+                assert!(pets[0].y<110.0,"pets button is not in the header");
                 if tab==game::Tab::Home {
                     let field=output.shapes.iter().find_map(|shape|match &shape.shape {
-                        egui::Shape::Rect(rect) if rect.fill==egui::Color32::from_rgb(160,205,225)=>Some(rect.rect),_=>None
+                        egui::Shape::Rect(rect) if rect.fill==egui::Color32::from_rgb(121,166,82)=>Some(rect.rect),_=>None
                     }).expect("ground field viewport");
                     assert!(field.left()<=1.0&&field.right()>=width-1.0,"field does not fill screen width: {field:?}");
                 }
