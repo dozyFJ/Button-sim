@@ -102,6 +102,11 @@ impl Game {
             self.damage_switch(1);
             return true;
         }
+        self.buy_switch_reward(index)
+    }
+    fn buy_switch_reward(&mut self, index: usize) -> bool {
+        let price = Self::switch_price(index);
+        if self.switch_hp(index) != 0 || self.coins < price { return false; }
         self.coins -= price;
         self.multiplier = self.multiplier.saturating_add(1);
         self.switch_damage[index] = 0;
@@ -116,6 +121,11 @@ impl Game {
         self.reveal_affordable_switches();
         if let Some(h)=&mut self.hatch { h.elapsed+=dt; }
         if self.attack_running() {
+            let target = self.selected_switch;
+            if self.switch_hp(target) == 0 {
+                self.buy_switch_reward(target);
+                return;
+            }
             let before = self.attack_clock;
             self.attack_clock += dt;
             let mut next = [f64::INFINITY; 3];
@@ -133,7 +143,10 @@ impl Game {
                 *xp = xp.saturating_add(1);
                 self.damage_switch(self.pets[index].damage());
                 self.auto_hits = self.auto_hits.saturating_add(1);
-                if self.switch_hp(self.selected_switch) == 0 { break; }
+                if self.switch_hp(target) == 0 {
+                    self.buy_switch_reward(target);
+                    break;
+                }
                 next[slot] = time + 1.0;
             }
         }
@@ -147,7 +160,7 @@ impl Game {
         1.0+self.equipped_pets.iter().filter_map(|&i|self.pets.get(i)).map(|p|p.bonus()-1.0).sum::<f64>()
     }
     pub fn attack_running(&self)->bool {
-        self.tab != Tab::Rebirths && self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.interface_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)&&self.switch_hp(self.selected_switch)>0
+        self.tab != Tab::Rebirths && self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.interface_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)
     }
     pub fn toggle_auto_attack(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.pets_open||self.equipped_pets.is_empty() { return false; }
@@ -418,11 +431,37 @@ mod tests {
         g.tick(1.69);assert_eq!(g.auto_hits,0);g.tick(0.02);
         assert_eq!(g.auto_hits,1);assert_eq!(g.switch_hp(0),4);assert_eq!(g.multiplier,1);assert!(g.pet_is_striking(0));
     }
+    #[test]
+    fn pets_collect_depleted_rewards_when_the_balance_is_sufficient() {
+        let mut game = Game::default();
+        for _ in 0..5 { game.tap(); }
+        game.pets.push(PetKind::Cat);
+        game.equip_pet(0);
+        game.toggle_auto_attack();
+        game.tick(1.8);
+        assert_eq!(game.auto_hits, 1);
+        assert_eq!(game.switch_hp(0), 0);
+        assert_eq!(game.multiplier, 1);
+        game.coins = Game::switch_price(0);
+        game.tick(0.0);
+        assert_eq!(game.multiplier, 2);
+        assert_eq!(game.coins, 0.0);
+        assert_eq!(game.switch_hp(0), 6);
+        game.tick(0.0);
+        assert_eq!(game.multiplier, 2);
+    }
+
     #[test] fn team_hits_are_staggered_and_timestep_independent() {
         let mut a=Game::default();a.pets=vec![PetKind::Cat,PetKind::Dog,PetKind::Bunny];
-        for i in 0..3 {a.equip_pet(i);}a.toggle_auto_attack();let mut b=a.clone();
+        for i in 0..3 {a.equip_pet(i);}
+        a.taps = 10_000;
+        a.rebirths = 5;
+        a.coins = 2_000_000.0;
+        a.tick(0.0);
+        a.selected_switch = 45;
+        a.toggle_auto_attack();let mut b=a.clone();
         a.tick(5.1);for _ in 0..510 {b.tick(0.01);}
-        assert_eq!(a.auto_hits,3);assert_eq!(a.auto_hits,b.auto_hits);assert_eq!(a.multiplier,b.multiplier);assert_eq!(a.switch_hp(0),b.switch_hp(0));
+        assert_eq!(a.auto_hits,12);assert_eq!(a.auto_hits,b.auto_hits);assert_eq!(a.multiplier,b.multiplier);assert_eq!(a.switch_hp(45),b.switch_hp(45));
         assert!((a.pet_bonus()-2.1).abs()<0.001);
     }
     #[test] fn pause_inventory_and_hatch_suspend_attacks_without_catchup() {

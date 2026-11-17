@@ -272,8 +272,8 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
                 let dt = now.duration_since(self.last_tick.replace(now).unwrap_or(now)).as_secs_f64().min(0.25);
-                self.game.tick(dt);
                 let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch, self.game.dark_mode, self.game.multiplier);
+                self.game.tick(dt);
                 let input = g.state.take_egui_input(&g.gpu.window);
                 let mut update_requested = false;
                 let update_error = self.update_error.clone();
