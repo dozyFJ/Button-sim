@@ -274,8 +274,8 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     }
     let mut update_requested=false;
     if game.paused {
-        let rect=Rect::from_center_size(workspace.center(),vec2((workspace.width()-24.0).min(350.0),(workspace.height()-24.0).min(260.0)));
-        egui::Window::new("Пауза").fixed_rect(rect).collapsible(false).resizable(false).show(ctx,|ui| {
+        panels_ui::centered_modal(ctx, workspace, "Пауза", vec2(350.0, 250.0), |ui| {
+            if panels_ui::heading(ui, "Пауза") { game.paused = false; return; }
             ui.vertical_centered(|ui| {
                 ui.label("Доход и нажатия остановлены");
                 let build=option_env!("GITHUB_SHA").unwrap_or("development");ui.label(format!("Button Sim {} · {}",env!("CARGO_PKG_VERSION"),&build[..build.len().min(8)]));
@@ -286,6 +286,7 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
         });
     }
     game.pets_open=state.panel==Panel::Pets;game.interface_open=state.busy();state.store(ctx);
+    if !game.paused && state.modal == Modal::None { panels_ui::clear_modal_animation(ctx); }
     update_requested
 }
 

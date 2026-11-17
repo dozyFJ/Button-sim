@@ -14,6 +14,38 @@ pub fn paint_background(ui: &egui::Ui) {
         crate::paint_white_aero(ui.painter(), ui.max_rect());
     }
 }
+pub fn centered_modal(
+    ctx: &egui::Context, workspace: Rect, title: &'static str, size: egui::Vec2,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    let time = ctx.input(|input| input.time);
+    let key = egui::Id::new("centered_modal_animation");
+    let started = ctx.data_mut(|data| {
+        let entry = data.get_temp_mut_or_insert_with(key, || (title, time));
+        if entry.0 != title { *entry = (title, time); }
+        entry.1
+    });
+    let t = ((time - started) / 0.18).clamp(0.0, 1.0) as f32;
+    let eased = t * (2.0 - t);
+    if t < 1.0 { ctx.request_repaint(); }
+    ctx.layer_painter(egui::LayerId::background()).rect_filled(workspace, 0.0,
+        egui::Color32::from_black_alpha((115.0 * eased) as u8));
+    let size = size.min(workspace.size() - vec2(24.0, 24.0)).max(vec2(40.0, 40.0));
+    let bounds = Rect::from_center_size(workspace.center() + vec2(0.0, (1.0 - eased) * 10.0), size);
+    let frame = frame(ctx).rounding(14.0);
+    let content = bounds.size() - frame.total_margin().sum();
+    egui::Window::new(title).title_bar(false).fixed_pos(bounds.min).fixed_size(content)
+        .resizable(false).collapsible(false).frame(frame).show(ctx, |ui| {
+            paint_background(ui);
+            ui.multiply_opacity(0.55 + 0.45 * eased);
+            add_contents(ui);
+        });
+}
+
+pub fn clear_modal_animation(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.remove::<(&'static str, f64)>(egui::Id::new("centered_modal_animation")));
+}
+
 pub fn heading(ui:&mut egui::Ui,title:&str)->bool {
     let mut close=false;ui.horizontal(|ui| {ui.label(T::new(title).size(19.0).strong());ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui| {close=ui.button("X").clicked();});});ui.separator();close
 }
@@ -56,11 +88,15 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
         });
     }
     if state.modal!=Modal::None {
-        let rect=Rect::from_center_size(workspace.center(),vec2((workspace.width()-28.0).min(560.0),(workspace.height()-24.0).min(470.0)));
-        let modal=state.modal;
-        egui::Window::new("game_modal").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(frame(ctx)).show(ctx,|ui| {
-            paint_background(ui);
-            if heading(ui,match modal {Modal::Upgrades=>"Улучшения",Modal::Settings=>"Настройки",Modal::Shop=>"Магазин",Modal::None=>""}) {state.close();}
+        let modal = state.modal;
+        let (title, size) = match modal {
+            Modal::Upgrades => ("Улучшения", vec2(450.0, 470.0)),
+            Modal::Settings => ("Настройки", vec2(380.0, 220.0)),
+            Modal::Shop => ("Магазин", vec2(420.0, 305.0)),
+            Modal::None => return,
+        };
+        centered_modal(ctx, workspace, title, size, |ui| {
+            if heading(ui, title) { state.close(); return; }
             egui::ScrollArea::vertical().id_salt(("modal_cards",modal==Modal::Upgrades)).show(ui,|ui| {
                 if modal==Modal::Settings {
                     ui.checkbox(&mut game.dark_mode, "Тёмная тема");
