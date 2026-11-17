@@ -1,5 +1,5 @@
 //! Portrait HUD with a compact currency header and centered navigation tiles.
-use egui::{Align2, Color32 as C, FontId, Rect, RichText as T, Sense, pos2, vec2};
+use egui::{Align2, Color32 as C, FontId, Rect, Sense, pos2, vec2};
 use crate::{amount, game::{Game, Tab}, gui_state::{GuiState, Modal, Panel}, nav_icon};
 
 pub const HEADER: f32 = 54.0;
@@ -53,29 +53,12 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             if profile.clicked() {
                 if state.panel == Panel::Profile { state.close(); } else { state.profile(false); }
             }
-            let currency_width = (ui.available_width() - 86.0).max(0.0);
-            egui::ScrollArea::horizontal().id_salt("header_currencies").max_width(currency_width)
-                .auto_shrink([false, true]).scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-                .show(ui, |ui| {
-                    ui.horizontal_centered(|ui| {
-                        ui.set_min_height(34.0);
-                        let values = [
-                            (format!("$ {}", amount(game.coins)), 19.0),
-                            (format!("↻ {}", game.rebirths), 17.0),
-                            (format!("+{} / сек", amount(game.coins_per_second())), 13.0),
-                        ];
-                        let spacing = 10.0;
-                        ui.spacing_mut().item_spacing.x = spacing;
-                        let text_width = values.iter().map(|(text, size)| {
-                            ui.painter().layout_no_wrap(text.clone(), FontId::proportional(*size), ui.visuals().text_color()).size().x
-                        }).sum::<f32>() + 2.0 * spacing;
-                        let padding = (currency_width - text_width - spacing - 6.0).max(0.0) * 0.5;
-                        if padding > 0.0 { ui.add_space(padding); }
-                        for (text, size) in values {
-                            ui.label(T::new(text).size(size));
-                        }
-                    });
-                });
+            let currency_width = (ui.available_width() - 38.0 - 36.0 - 2.0 * ui.spacing().item_spacing.x).max(0.0);
+            let (balance, _) = ui.allocate_exact_size(vec2(currency_width, 34.0), Sense::hover());
+            ui.painter().with_clip_rect(balance).text(
+                balance.center(), Align2::CENTER_CENTER, format!("$ {}", amount(game.coins)),
+                FontId::proportional(19.0), ui.visuals().text_color(),
+            );
             let pause = ui.add(egui::Button::new("").min_size(vec2(38.0, 34.0)))
                 .on_hover_text(if game.paused { "Продолжить" } else { "Пауза" });
             let center = pause.rect.center();
