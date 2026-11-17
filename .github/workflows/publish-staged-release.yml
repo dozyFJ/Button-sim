@@ -33,7 +33,7 @@ jobs:
         run: |
           TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           "$TOOLS/apksigner" verify --verbose --print-certs build/button-sim-release.apk | tee /tmp/apk-signature.txt
-          grep -F "certificate SHA-256 digest: f57b73cec072c6ca688126dfb34c8eb42f2780f357d8146b01fdce7feb2b0477" /tmp/apk-signature.txt
+          grep -F "certificate SHA-256 digest: d67b1570fcf87758609baa326c14ce77d7e91f58d93ec9338f0b4dec49cd0c01" /tmp/apk-signature.txt
           "$TOOLS/zipalign" -c -P 16 4 build/button-sim-release.apk
           python3 tools/check_shell_apk.py game build/button-sim-release.apk
           curl -fsSL --retry 3 https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar -o /tmp/json.jar || curl -fsSL --retry 3 https://maven-central.storage-download.googleapis.com/maven2/org/json/json/20240303/json-20240303.jar -o /tmp/json.jar

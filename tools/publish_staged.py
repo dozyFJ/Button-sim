@@ -2,7 +2,7 @@
 """Fetch locally signed release blobs and validate them before CI publication."""
 import base64, hashlib, json, os, pathlib, re, subprocess, urllib.request, zipfile
 REPO="dozyFJ/Button-sim"
-FINGERPRINT="f57b73cec072c6ca688126dfb34c8eb42f2780f357d8146b01fdce7feb2b0477"
+FINGERPRINT="d67b1570fcf87758609baa326c14ce77d7e91f58d93ec9338f0b4dec49cd0c01"
 def blob(sha):
     if not re.fullmatch(r"[0-9a-f]{40}",sha): raise ValueError("Invalid blob")
     request=urllib.request.Request("https://api.github.com/repos/"+REPO+"/git/blobs/"+sha,
