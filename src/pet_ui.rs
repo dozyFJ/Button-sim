@@ -129,13 +129,21 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     let mut page = if first_page { 1 } else { 2 };
-                    ui.label(format!("Страница {page}/2"));
+                    ui.horizontal(|ui| {
+                        for number in 1..=2 {
+                            let (rect, response) = ui.allocate_exact_size(vec2(16.0, 18.0), Sense::click());
+                            let ink = ui.visuals().text_color().gamma_multiply(if page == number { 1.0 } else { 0.42 });
+                            ui.painter().circle_filled(rect.center(), if page == number { 3.5 } else { 2.5 }, ink);
+                            if response.on_hover_text(if number == 1 { "Множитель" } else { "Ребёрты" }).clicked() {
+                                page = number;
+                            }
+                        }
+                        ui.label(T::new(format!("{page}/2")).size(11.0));
+                    });
                     ui.spacing_mut().slider_width = 74.0;
-                    if ui.add(egui::Slider::new(&mut page, 1..=2).show_value(false))
-                        .on_hover_text("Множитель / Ребёрты").changed()
-                    {
-                        game.tab = if page == 1 { crate::game::Tab::Home } else { crate::game::Tab::Rebirths };
-                    }
+                    ui.add(egui::Slider::new(&mut page, 1..=2).show_value(false))
+                        .on_hover_text("Множитель / Ребёрты");
+                    game.tab = if page == 1 { crate::game::Tab::Home } else { crate::game::Tab::Rebirths };
                 });
                 if !first_page { return; }
                 ui.separator();

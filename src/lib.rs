@@ -357,7 +357,7 @@ mod layout_tests {
             _ => None,
         }).collect();
         assert!(labels.contains(&"Плитки ребёрта"));
-        assert!(labels.contains(&"Страница 2/2"));
+        assert!(labels.contains(&"2/2"));
         assert!(!labels.contains(&"Автоатака"));
     }
     #[test] fn profile_and_inventory_are_context_frames_to_the_right_of_navigation() {

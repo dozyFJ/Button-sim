@@ -134,6 +134,20 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             state.sidebar_scroll = out.state.offset.x;
         });
 
+        let pages = (max_offset / step).ceil() as usize + 1;
+        if pages > 1 {
+            let active = (state.sidebar_scroll / step).round() as usize;
+            let spacing = 10.0;
+            let start = center.x - (pages - 1) as f32 * spacing * 0.5;
+            for page in 0..pages {
+                let point = pos2(start + page as f32 * spacing, strip.bottom() - 4.0);
+                let color = if page == active { ui.visuals().text_color() } else {
+                    ui.visuals().text_color().gamma_multiply(0.40)
+                };
+                ui.painter().circle_filled(point, 2.0, color);
+            }
+        }
+
         let width = (dock.width() - 16.0).max(0.0);
         let pocket = Rect::from_min_size(pos2(dock.center().x - width * 0.5, strip.bottom()), vec2(width, XP_POCKET));
         let painter = ui.painter();
