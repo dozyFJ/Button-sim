@@ -367,6 +367,25 @@ mod layout_tests {
         render(&ctx,&mut g,960.0,720.0);let out=render(&ctx,&mut g,960.0,720.0);assert!(g.pets_open);assert!(g.interface_open);
         assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Удалить")));
     }
+    #[test]
+    fn portrait_pet_sheet_keeps_preview_and_progress_above_inventory() {
+        let ctx = egui::Context::default();
+        let mut game = game::Game::default();
+        game.pets.push(game::PetKind::Fox);
+        let mut state = gui_state::GuiState::default();
+        state.pets();
+        state.store(&ctx);
+        render(&ctx, &mut game, 360.0, 740.0);
+        let out = render(&ctx, &mut game, 360.0, 740.0);
+        let label = |prefix: &str| out.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.job.text.starts_with(prefix) => Some(text.pos),
+            _ => None,
+        }).unwrap();
+        let rarity = label("Эпический · тир");
+        let xp = label("Ур. 1");
+        let collection = label("Инвентарь 1/1000");
+        assert!(xp.x > rarity.x && xp.y < collection.y && rarity.y < collection.y);
+    }
     #[test] fn hatch_hides_game_gui_and_centers_the_scene() {
         for elapsed in [1.5,3.1] {
             let ctx=egui::Context::default();let mut g=game::Game::default();g.coins=500.0;g.buy_capsule(game::Capsule::Meadow);g.hatch.as_mut().unwrap().elapsed=elapsed;

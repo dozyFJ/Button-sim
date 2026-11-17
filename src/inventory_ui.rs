@@ -7,7 +7,8 @@ pub fn draw(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut G
     if state.panel != Panel::Pets { return; }
     let sheet = Rect::from_min_max(workspace.left_top() + vec2(0.0, 8.0), workspace.right_bottom());
     let frame = panels_ui::frame(ctx).rounding(egui::Rounding { nw: 20.0, ne: 20.0, sw: 0.0, se: 0.0 });
-    egui::Window::new("pets_inventory").title_bar(false).fixed_rect(sheet)
+    let content_size = sheet.size() - frame.total_margin().sum();
+    egui::Window::new("pets_inventory").title_bar(false).fixed_pos(sheet.min).fixed_size(content_size)
         .resizable(false).collapsible(false).frame(frame).show(ctx, |ui| {
         if panels_ui::heading(ui, "Питомцы") {
             state.close();
