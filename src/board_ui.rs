@@ -5,6 +5,7 @@ use crate::game::Game;
 pub fn show(ui:&mut egui::Ui,game:&mut Game) {
     let mut focus=false;
     let controls_origin=ui.max_rect().left_top()+vec2(8.0,6.0);
+    if !game.pets_open && game.hatch.is_none() && !game.paused {
     egui::Area::new(egui::Id::new("field_controls")).fixed_pos(controls_origin).order(egui::Order::Foreground).movable(false).show(ui.ctx(),|ui| {
         ui.set_max_width((ui.ctx().screen_rect().width()-24.0).max(250.0));
         ui.add_enabled_ui(!game.paused&&!game.pets_open&&game.hatch.is_none(),|ui| {
@@ -20,6 +21,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
         });
         });
     });
+    }
     let columns=game.grid_size;
     let height=ui.available_height().max(80.0);
     let bias=if ui.available_width()>ui.available_height()*1.3 {3.5} else {1.5};

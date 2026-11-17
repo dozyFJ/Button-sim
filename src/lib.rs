@@ -384,6 +384,12 @@ mod layout_tests {
                 assert!(scene.top()>=100.0&&scene.top()<=116.0,"header height: {scene:?}");
                 assert!((scene.bottom()-height).abs()<1.0,"unexpected bottom dock: {scene:?}");
                 assert!(scene.height()>=height*0.65,"scene too small: {scene:?}");
+                if tab==game::Tab::Home {
+                    let field=output.shapes.iter().find_map(|shape|match &shape.shape {
+                        egui::Shape::Rect(rect) if rect.fill==egui::Color32::from_rgb(160,205,225)=>Some(rect.rect),_=>None
+                    }).expect("ground field viewport");
+                    assert!(field.left()<=1.0&&field.right()>=width-1.0,"field does not fill screen width: {field:?}");
+                }
             }
         }
     }
