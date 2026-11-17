@@ -50,26 +50,19 @@ pub struct Game {
     pub active_boosts: Vec<ActiveBoost>,
     revealed_switches: usize,
     switch_damage: Vec<u64>,
-    switch_recovery: std::collections::BTreeMap<usize, f64>,
     pet_xp: std::collections::BTreeMap<usize, u64>,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,active_boosts:Vec::new(),revealed_switches:5,switch_damage:vec![0;1024],switch_recovery:Default::default(),pet_xp:Default::default(),
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,active_boosts:Vec::new(),revealed_switches:5,switch_damage:vec![0;1024],pet_xp:Default::default(),
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
     pub fn tap(&mut self) { self.tap_switch(self.selected_switch); }
     pub fn switch_max_hp(index: usize) -> u64 { 6 + 2 * index as u64 }
     pub fn switch_price(index: usize) -> f64 { 5.0 * (index + 1) as f64 }
-    pub fn switch_recovery_time(index: usize) -> f64 { if index < 5 { 10.0 } else { 60.0 } }
-    pub fn switch_recovery_left(&self, index: usize) -> f64 {
-        self.switch_recovery.get(&index).map_or(0.0, |deadline| (deadline - self.played_seconds).max(0.0))
-    }
-    pub fn switch_hp(&self, index: usize) -> u64 {
-        if self.switch_recovery_left(index) > 0.0 { 0 } else { Self::switch_max_hp(index) - self.switch_damage[index] }
-    }
+    pub fn switch_hp(&self, index: usize) -> u64 { Self::switch_max_hp(index) - self.switch_damage[index] }
     fn damage_switch(&mut self, damage: u64) {
         let target = self.selected_switch;
         self.switch_damage[target] = self.switch_damage[target].saturating_add(damage).min(Self::switch_max_hp(target));
@@ -101,7 +94,6 @@ impl Game {
     }
     pub fn tap_switch(&mut self,index:usize)->bool {
         if self.paused||self.pets_open||self.interface_open||self.hatch.is_some()||!self.switch_unlocked(index) {return false;}
-        if self.switch_recovery_left(index) > 0.0 { return false; }
         let can_hit = self.switch_hp(index) > 0;
         let price = Self::switch_price(index);
         if !can_hit && self.coins < price { return false; }
@@ -113,22 +105,19 @@ impl Game {
         self.coins -= price;
         self.multiplier = self.multiplier.saturating_add(1);
         self.switch_damage[index] = 0;
-        self.switch_recovery.insert(index, self.played_seconds + Self::switch_recovery_time(index));
         self.attack_clock = 0.0;
         true
     }
     pub fn tick(&mut self,seconds:f64) {
         if self.paused||!seconds.is_finite() { return; }
         let dt=seconds.max(0.0);
-        let attack_dt = (dt - self.switch_recovery_left(self.selected_switch)).max(0.0);
         let income=self.coins_per_second()*dt;
         self.coins+=income; self.total_earned+=income; self.played_seconds+=dt;
         self.reveal_affordable_switches();
         if let Some(h)=&mut self.hatch { h.elapsed+=dt; }
-        self.switch_recovery.retain(|_, deadline| *deadline > self.played_seconds);
         if self.attack_running() {
             let before = self.attack_clock;
-            self.attack_clock += attack_dt;
+            self.attack_clock += dt;
             let mut next = [f64::INFINITY; 3];
             for (slot, time) in next.iter_mut().take(self.equipped_pets.len()).enumerate() {
                 let offset = 0.7 + slot as f64 * 0.18;
@@ -279,14 +268,12 @@ impl Game {
             .map(|(index, damage)| format!("{index}:{damage}")).collect::<Vec<_>>().join(",");
         let xp = self.pet_xp.iter().map(|(index, xp)| format!("{index}:{xp}"))
             .collect::<Vec<_>>().join(",");
-        let recovery = self.switch_recovery.iter().map(|(index, deadline)| format!("{index}:{deadline}"))
-            .collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n{}\n{}\n{}\n",
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n{}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
             pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
             self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
             self.auto_attack,self.auto_hits,self.grid_size,self.selected_switch,
-            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage,xp,self.revealed_switches,recovery)
+            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage,xp,self.revealed_switches)
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -348,15 +335,6 @@ impl Game {
                 .map_or(5, |index| index + 1);
             previously_used.max(g.selected_switch + 1).max(5)
         };
-        if let Some(recovery) = lines.next().filter(|line| !line.is_empty()) {
-            for entry in recovery.split(',') {
-                let (index, deadline) = entry.split_once(':')?;
-                let index: usize = index.parse().ok()?;
-                let deadline: f64 = deadline.parse().ok()?;
-                if index >= g.switches.len() || !deadline.is_finite() { return None; }
-                if deadline > g.played_seconds { g.switch_recovery.insert(index, deadline); }
-            }
-        }
         g.reveal_affordable_switches();
         if !g.switch_unlocked(g.selected_switch) { g.selected_switch = 0; }
         g.grid_size=32;
@@ -485,31 +463,21 @@ mod tests {
     }
 
     #[test]
-    fn depleted_tiles_sell_one_reward_then_recover() {
+    fn depleted_tiles_sell_one_reward_and_restore_hp_immediately() {
         let mut game = Game::default();
         for _ in 0..6 { assert!(game.tap_switch(0)); }
         assert_eq!(game.switch_hp(0), 0);
         assert_eq!(game.multiplier, 1);
         assert!(!game.tap_switch(0));
-        game.coins = Game::switch_price(0);
+        game.coins = Game::switch_price(0) * 2.0;
         assert!(game.tap_switch(0));
-        assert_eq!(game.coins, 0.0);
+        assert_eq!(game.coins, Game::switch_price(0));
         assert_eq!(game.multiplier, 2);
-        assert_eq!(game.switch_recovery_left(0), 10.0);
-        assert!(!game.tap_switch(0));
-        game.tick(4.0);
-        let mut game = Game::from_save(&game.save_text()).unwrap();
-        assert_eq!(game.switch_recovery_left(0), 6.0);
-        game.tick(6.0);
         assert_eq!(game.switch_hp(0), 6);
-
-        game.coins = 1_000.0;
-        game.taps = 100;
-        game.rebirths = 1;
-        game.tick(0.0);
-        for _ in 0..Game::switch_max_hp(5) { assert!(game.tap_switch(5)); }
-        assert!(game.tap_switch(5));
-        assert_eq!(game.switch_recovery_left(5), 60.0);
+        assert!(game.tap_switch(0));
+        assert_eq!(game.switch_hp(0), 5);
+        assert_eq!(game.multiplier, 2);
+        assert_eq!(game.coins, Game::switch_price(0));
     }
 
     #[test] fn starter_switches_and_level_locks() {

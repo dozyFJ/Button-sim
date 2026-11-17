@@ -111,12 +111,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 } else {
                     let max_hp = Game::switch_max_hp(index);
                     let hp = game.switch_hp(index);
-                    let recovery = game.switch_recovery_left(index);
-                    let seconds = recovery.ceil() as u64;
-                    let (status, reward, progress) = if seconds > 0 {
-                        (format!("ХИЛ {}:{:02}", seconds / 60, seconds % 60), "ПОДОЖДИ".into(),
-                            1.0 - (recovery / Game::switch_recovery_time(index)) as f32)
-                    } else if hp == 0 {
+                    let (status, reward, progress) = if hp == 0 {
                         ("ГОТОВО".into(), format!("КУПИ {}", amount(Game::switch_price(index))), 0.0)
                     } else {
                         (format!("{hp}/{max_hp}"), "НАГР +1".into(), hp as f32 / max_hp as f32)
