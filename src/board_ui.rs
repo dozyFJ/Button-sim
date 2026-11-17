@@ -56,6 +56,14 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 let completed = rebirths && index < game.rebirths as usize;
                 let selected = if rebirths { index == game.rebirths as usize } else { index == game.selected_switch };
                 let unlocked = if rebirths { completed || selected } else { game.switch_unlocked(index) };
+                let (hp, max_hp, price) = if rebirths {
+                    let max_hp = Game::rebirth_tile_max_hp(index as u32);
+                    (if selected { game.rebirth_tile_hp() } else { max_hp }, max_hp, Game::rebirth_price_at(index as u32))
+                } else {
+                    (game.switch_hp(index), Game::switch_max_hp(index), Game::switch_price(index))
+                };
+                let awaiting_payment = unlocked && !completed && hp == 0;
+                let can_pay = game.coins >= price;
                 let active = if rebirths { completed } else { game.switches[index] };
                 let t = ui.ctx().animate_bool_with_time(ui.id().with(("switch", index)), active, 0.16);
                 let tilt=(t-0.5)*8.0;
@@ -75,6 +83,9 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 ));
                 let fill = if !unlocked {
                     crate::theme_color(dark, [157,160,163], [53,55,63])
+                } else if awaiting_payment {
+                    if can_pay { crate::theme_color(dark, [160,222,145], [35,104,65]) }
+                    else { crate::theme_color(dark, [244,169,169], [119,45,54]) }
                 } else if active {
                     crate::theme_color(dark, [140,191,105], [63,92,30])
                 } else {
@@ -82,6 +93,9 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 };
                 let border = if !unlocked {
                     crate::theme_color(dark, [105,108,112], [112,115,123])
+                } else if awaiting_payment {
+                    if can_pay { crate::theme_color(dark, [40,121,59], [116,230,151]) }
+                    else { crate::theme_color(dark, [162,49,58], [248,127,136]) }
                 } else if selected { crate::theme_color(dark, [230,148,36], [172,225,78]) } else {
                     crate::theme_color(dark, [104,119,76], [104,138,199])
                 };
@@ -98,23 +112,19 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                     p.rect_filled(Rect::from_min_size(face[0] + vec2(5.0, 5.0 + y), vec2(width, 3.0)), 0.0, highlight);
                 }
                 let ink = if unlocked { crate::theme_color(dark, [45,62,38], [241,247,255]) } else { crate::theme_color(dark, [38,41,45], [231,232,238]) };
+                let payment_label = if can_pay { "КУПИ" } else { "МАЛО МОНЕТ" };
                 if rebirths {
-                    let price = Game::rebirth_price_at(index as u32);
-                    let max_hp = Game::rebirth_tile_max_hp(index as u32);
-                    let hp = if selected { game.rebirth_tile_hp() } else { max_hp };
-                    let status = if completed { "ГОТОВО".into() } else if selected && hp == 0 {
-                        "КУПИ РЕБЕРТ".into()
+                    let status = if completed { "ГОТОВО".into() } else if awaiting_payment {
+                        payment_label.into()
                     } else if selected { format!("{hp}/{max_hp}") } else { "ЗАКРЫТО".into() };
                     crate::surface_gui::paint(p, face, &[
                         format!("РЕБЕРТ {}", index + 1), status,
                         format!("ЦЕНА {}", amount(price)), "ДОХОД X2".into(),
                     ], ink, selected.then_some(hp as f32 / max_hp as f32), !unlocked);
-                    if selected && response.clicked() { game.tap_rebirth_tile(); }
+                    if selected && (!awaiting_payment || can_pay) && response.clicked() { game.tap_rebirth_tile(); }
                 } else {
-                    let max_hp = Game::switch_max_hp(index);
-                    let hp = game.switch_hp(index);
-                    let (status, reward, progress) = if hp == 0 {
-                        ("ГОТОВО".into(), format!("КУПИ {}", amount(Game::switch_price(index))), 0.0)
+                    let (status, reward, progress) = if awaiting_payment {
+                        (payment_label.into(), format!("ЦЕНА {}", amount(price)), 0.0)
                     } else {
                         (format!("{hp}/{max_hp}"), "НАГР +1".into(), hp as f32 / max_hp as f32)
                     };
@@ -123,7 +133,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                         format!("УР {}", Game::switch_required_level(index)),
                         format!("РБ {} · {}", Game::switch_required_rebirths(index), Game::switch_rarity(index)),
                     ], ink, unlocked.then_some(progress), !unlocked);
-                    if unlocked && response.clicked() { game.tap_switch(index); }
+                    if unlocked && (!awaiting_payment || can_pay) && response.clicked() { game.tap_switch(index); }
                 }
                 if !unlocked {
                     let center = face[1].lerp(face[2], 0.20) - vec2(17.0, 0.0);
