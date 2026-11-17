@@ -178,6 +178,9 @@ fn board_swipe(
                     let (_, origin) = start.take().unwrap();
                     let delta = *pos - origin;
                     if *phase == egui::TouchPhase::End && delta.x.abs() >= 55.0 && delta.x.abs() >= 1.65 * delta.y.abs() {
+                        if current == game::Tab::Home
+                            && (delta.x > 0.0) != (origin.x <= field.center().x)
+                        { return None; }
                         let index = FIELD_PAGES.iter().position(|(tab, _)| *tab == current)?;
                         let next = index.checked_add_signed(if delta.x < 0.0 { 1 } else { -1 })?;
                         return FIELD_PAGES.get(next).map(|(tab, _)| *tab);
@@ -213,18 +216,43 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     let workspace=ctx.available_rect();
     let rendered_tab = game.tab;
     let blocked=game.paused||game.hatch.is_some()||game.interface_open;
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(theme_color(game.dark_mode, [166,207,224], [10,20,39])).inner_margin(egui::Margin::same(if game.tab==game::Tab::Capsules {10.0} else {0.0}))).show(ctx,|ui| {
-        ui.add_enabled_ui(!blocked,|ui| {
-            if game.tab==game::Tab::Capsules {
-                pet_ui::shop(ui,game);
-            } else {board_ui::show(ui,game);}
+    let drawer = if matches!(rendered_tab, game::Tab::Rebirths | game::Tab::Capsules) {
+        let width = (workspace.width() * 0.94).min(660.0);
+        let x = if rendered_tab == game::Tab::Rebirths { workspace.left() } else { workspace.right() - width };
+        Some(Rect::from_min_size(egui::pos2(x, workspace.top()), vec2(width, workspace.height())))
+    } else { None };
+    let canvas_fill = theme_color(game.dark_mode, [166,207,224], [10,20,39]);
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(canvas_fill)).show(ctx, |ui| {
+        ui.add_enabled_ui(!blocked && drawer.is_none(), |ui| { board_ui::show(ui, game, false); });
+        let Some(drawer) = drawer else { return; };
+        let scrim = if rendered_tab == game::Tab::Rebirths {
+            Rect::from_min_max(drawer.right_top(), workspace.max)
+        } else {
+            Rect::from_min_max(workspace.min, drawer.left_bottom())
+        };
+        ui.painter().rect_filled(scrim, 0.0, C::from_black_alpha(95));
+        if !blocked && ui.interact(scrim, egui::Id::new("field_drawer_scrim"), egui::Sense::click()).clicked() {
+            game.tab = game::Tab::Home;
+            return;
+        }
+        let fill = if rendered_tab == game::Tab::Capsules { canvas_fill } else { ctx.style().visuals.window_fill };
+        ui.painter().rect_filled(drawer, 0.0, fill);
+        ui.painter().rect_stroke(drawer, 0.0, ctx.style().visuals.window_stroke);
+        let inner = if rendered_tab == game::Tab::Capsules { drawer.shrink(8.0) } else { drawer };
+        ui.allocate_ui_at_rect(inner, |ui| {
+            ui.set_clip_rect(ui.clip_rect().intersect(inner));
+            ui.set_width(inner.width());
+            ui.add_enabled_ui(!blocked, |ui| {
+                if rendered_tab == game::Tab::Capsules { pet_ui::shop(ui, game); }
+                else { board_ui::show(ui, game, true); }
+            });
         });
     });
     panels_ui::draw(ctx,workspace,game,&mut state);
     inventory_ui::draw(ctx,workspace,game,&mut state);
     if FIELD_PAGES.iter().any(|(tab, _)| *tab == game.tab) && !blocked {
         let previous = game.tab;
-        let controls = pet_ui::board_controls(ctx, workspace, game, &mut state);
+        let controls = pet_ui::board_controls(ctx, drawer.unwrap_or(workspace), game, &mut state);
         if game.tab == game::Tab::Home { pet_ui::boost_status(ctx, workspace, controls, game); }
         if !state.busy() && game.tab == previous && game.tab == rendered_tab {
             let mut swipe_area = workspace;

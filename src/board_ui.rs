@@ -1,6 +1,6 @@
 //! One vertically scrolling field; metadata is part of the animated switch face.
 use egui::{Color32 as C,Rect,Stroke,Sense,Shape,pos2,vec2};
-use crate::{amount, game::{Game, Tab}};
+use crate::{amount, game::Game};
 fn draw_floor(ui: &egui::Ui, view: Rect, dark: bool) {
     let painter = ui.painter().with_clip_rect(view);
     let base = crate::theme_color(dark, [119,159,85], [16,29,53]);
@@ -28,9 +28,8 @@ fn draw_floor(ui: &egui::Ui, view: Rect, dark: bool) {
     }
 }
 
-pub fn show(ui:&mut egui::Ui,game:&mut Game) {
+pub fn show(ui:&mut egui::Ui,game:&mut Game,rebirths:bool) {
     let dark = game.dark_mode;
-    let rebirths = game.tab == Tab::Rebirths;
     draw_floor(ui, ui.available_rect_before_wrap(), dark);
     if rebirths {
         egui::Frame::none().fill(ui.visuals().panel_fill).inner_margin(egui::Margin::same(8.0)).show(ui, |ui| {
@@ -156,7 +155,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                     }
                 }
                 let target_alive = if rebirths { game.rebirth_tile_hp() > 0 } else { game.switch_hp(index) > 0 };
-                if unlocked && selected && target_alive && !game.equipped_pets.is_empty() {
+                if ui.is_enabled() && unlocked && selected && target_alive && !game.equipped_pets.is_empty() {
                     crate::pet_ui::attack_scene(p,Rect::from_center_size(r.center(),r.size()),r.center(),side*0.62,game);
                 }
             }
