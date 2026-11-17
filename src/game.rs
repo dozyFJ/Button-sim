@@ -35,11 +35,12 @@ pub struct Game {
     pub equipped_pets:Vec<usize>, pub auto_attack:bool, pub attack_clock:f64, pub auto_hits:u64,
     pub grid_size:usize, pub selected_switch:usize, pub switches:Vec<bool>,
     pub interface_open:bool,
+    pub dark_mode: bool,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
@@ -178,12 +179,12 @@ impl Game {
     }
     pub fn save_text(&self)->String {
         let pets=self.pets.iter().map(|p|(*p as u8).to_string()).collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n",
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
             pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
             self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
             self.auto_attack,self.auto_hits,self.grid_size,self.selected_switch,
-            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>())
+            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode)
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -220,6 +221,7 @@ impl Game {
             g.switches=states.bytes().map(|b|b==b'1').collect();
             if !g.switch_unlocked(g.selected_switch) {g.selected_switch=0;}
         }
+        g.dark_mode = lines.next() == Some("true");
         g.grid_size=32;
         Some(g)
     }
@@ -265,6 +267,15 @@ mod tests {
         assert_eq!(restored.coins,2500.0);assert_eq!(restored.pets,g.pets);assert!(restored.hatch.is_none());
         g.tick(3.0);g.finish_hatch(true);let restored=Game::from_save(&g.save_text()).unwrap();
         assert_eq!(restored.equipped_pet,Some(0));assert!(Game::from_save("broken").is_none());
+    }
+
+    #[test]
+    fn theme_preference_survives_reload_and_defaults_to_light_for_old_saves() {
+        let game = Game { dark_mode: true, ..Game::default() };
+        let save = game.save_text();
+        assert!(Game::from_save(&save).unwrap().dark_mode);
+        let (old_save, _) = save.trim_end().rsplit_once('\n').unwrap();
+        assert!(!Game::from_save(old_save).unwrap().dark_mode);
     }
 
     #[test] fn auto_attack_requires_equipped_pet_and_travel() {

@@ -1,20 +1,19 @@
 use egui::{Color32 as C, RichText as T, vec2, Rect, Align2, Sense, Stroke, pos2};
 use crate::{game::{Game,Capsule},pet_render,amount};
-const INK:C=C::from_rgb(39,54,41);
 const GREEN:C=C::from_rgb(93,161,71);
 fn capsule_card(ui:&mut egui::Ui,game:&mut Game,capsule:Capsule) {
-    egui::Frame::none().fill(C::from_rgb(249,241,214)).rounding(18.0)
+    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [249,241,214], [31,40,36])).rounding(18.0)
         .inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
             ui.vertical_centered(|ui| {
-                ui.label(T::new(capsule.name()).size(19.0).strong().color(INK));
+                ui.label(T::new(capsule.name()).size(19.0).strong());
                 let (r,_)=ui.allocate_exact_size(vec2(125.0,135.0),Sense::hover());
                 pet_render::capsule(ui.painter(),r,capsule==Capsule::Neon,game.played_seconds as f32,0.0);
                 ui.horizontal_wrapped(|ui| {for &(pet,chance) in capsule.drops() {
-                    ui.label(T::new(format!("{} {}%",pet.name(),chance)).size(10.0).color(INK));
+                    ui.label(T::new(format!("{} {}%",pet.name(),chance)).size(10.0));
                 }});
                 if ui.add_enabled(game.coins>=capsule.price()&&game.pets.len()<1000,
                     egui::Button::new(T::new(format!("Купить · {} денег",amount(capsule.price()))).strong().color(C::WHITE))
-                    .fill(GREEN).rounding(0.0).min_size(vec2(ui.available_width(),38.0))).clicked() {game.buy_capsule(capsule);}
+                    .fill(ui.visuals().selection.bg_fill).rounding(0.0).min_size(vec2(ui.available_width(),38.0))).clicked() {game.buy_capsule(capsule);}
                 if game.pets.len()>=1000 {ui.label("Коллекция заполнена");}
             });
         });
@@ -27,15 +26,15 @@ pub fn shop(ui:&mut egui::Ui,game:&mut Game) {
     egui::ScrollArea::horizontal().id_salt("capsule_pills").show(ui,|ui| {
         ui.horizontal(|ui| {for (i,label) in labels.iter().enumerate() {
             let active=selected==i;
-            if ui.add(egui::Button::new(T::new(*label).color(if active {C::WHITE} else {INK}))
-                .fill(if active {GREEN} else {C::from_rgb(239,242,218)}).rounding(20.0).min_size(vec2(100.0,36.0))).clicked() {selected=i;}
+            if ui.add(egui::Button::new(T::new(*label).color(if active {C::WHITE} else {ui.visuals().text_color()}))
+                .fill(if active {ui.visuals().selection.bg_fill} else {crate::theme_color(ui.visuals().dark_mode, [239,242,218], [37,49,43])}).rounding(20.0).min_size(vec2(100.0,36.0))).clicked() {selected=i;}
         }});
     });
     ui.ctx().data_mut(|d|d.insert_temp(id,selected));
     ui.add_space(10.0);
-    egui::Frame::none().fill(C::from_rgb(225,236,213)).rounding(22.0).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
+    egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [225,236,213], [24,34,30])).rounding(22.0).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
         ui.set_width(ui.available_width());
-        ui.label(T::new(labels[selected]).strong().color(INK));
+        ui.label(T::new(labels[selected]).strong());
         egui::ScrollArea::vertical().id_salt(("capsule_list",selected)).show(ui,|ui| {
             for capsule in [Capsule::Meadow,Capsule::Neon] {
                 if selected==0||capsule.drops().iter().any(|(pet,_)|match selected {1=>pet.rarity()=="Обычный",2=>pet.rarity()=="Редкий",3=>pet.rarity()=="Эпический",_=>pet.rarity()=="Легендарный"}) {
@@ -50,8 +49,7 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
     let Some(hatch)=game.hatch.clone() else {return;};
     let elapsed=hatch.elapsed as f32;let reveal=elapsed>=3.0;
     let Some(&pet)=game.pets.get(hatch.inventory_index) else {return;};
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(C::from_rgb(166,207,224))).show(ctx,|ui| {
-        ui.visuals_mut().override_text_color=Some(INK);
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(crate::theme_color(game.dark_mode, [166,207,224], [15,23,24]))).show(ctx,|ui| {
         let width=ui.available_width();let height=ui.available_height();
         let model_size=(height-160.0).min(width*0.44).clamp(72.0,270.0);
         let content_height=model_size+if reveal {156.0} else {128.0};
@@ -67,11 +65,11 @@ pub fn overlays(ctx:&egui::Context,game:&mut Game) {
             if reveal {
                 ui.label(T::new(format!("{} · доход ×{:.1}",pet.rarity(),pet.bonus())).size(16.0));
                 ui.add_space(8.0);
-                if ui.add_sized(vec2(controls,38.0),egui::Button::new(T::new("Применить").strong().color(C::WHITE)).fill(GREEN).rounding(19.0)).clicked() {game.finish_hatch(true);}
+                if ui.add_sized(vec2(controls,38.0),egui::Button::new(T::new("Применить").strong().color(C::WHITE)).fill(ui.visuals().selection.bg_fill).rounding(19.0)).clicked() {game.finish_hatch(true);}
                 if ui.add_sized(vec2(controls,34.0),egui::Button::new("В коллекцию").rounding(17.0)).clicked() {game.finish_hatch(false);}
             } else {
                 ui.label(T::new(if elapsed<0.7 {"Приготовься…"} else if elapsed<2.4 {"ТРЯСЁМ!"} else {"Кто же внутри?"}).size(20.0).strong());
-                ui.add(egui::ProgressBar::new((elapsed/3.0).clamp(0.0,1.0)).desired_width(controls).fill(GREEN).show_percentage());
+                ui.add(egui::ProgressBar::new((elapsed/3.0).clamp(0.0,1.0)).desired_width(controls).fill(ui.visuals().selection.bg_fill).show_percentage());
             }
         });
     });
@@ -116,7 +114,7 @@ pub fn attack_scene(p:&egui::Painter,rect:Rect,center:egui::Pos2,button_size:f32
                 let v=vec2(angle.cos(),angle.sin());
                 p.line_segment([hit+v*4.0,hit+v*(8.0+phase*70.0)],Stroke::new(2.0,color));
             }
-            p.text(hit-vec2(0.0,18.0+phase*45.0),Align2::CENTER_CENTER,"+1",egui::FontId::proportional(20.0),C::from_rgb(45,65,39));
+            p.text(hit-vec2(0.0,18.0+phase*45.0),Align2::CENTER_CENTER,"+1",egui::FontId::proportional(20.0),crate::theme_color(game.dark_mode, [45,65,39], [232,239,230]));
         }
     }
 }
@@ -125,10 +123,10 @@ pub fn auto_attack(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut c
     let size=vec2(192.0,62.0);
     egui::Area::new(egui::Id::new("canvas_auto_attack")).order(egui::Order::Foreground)
         .fixed_pos(workspace.right_bottom()-size-vec2(12.0,12.0)).show(ctx,|ui| {
-        egui::Frame::none().fill(C::from_rgb(246,238,211)).rounding(18.0).inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
+        egui::Frame::none().fill(ctx.style().visuals.panel_fill).rounding(18.0).inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
             ui.set_width(size.x-20.0);
             ui.horizontal(|ui| {
-                ui.vertical(|ui| {ui.label(T::new("Автоатака").strong().color(INK));ui.label(T::new(if game.auto_attack {"Вкл"} else {"Выкл"}).size(11.0).color(INK));});
+                ui.vertical(|ui| {ui.label(T::new("Автоатака").strong());ui.label(T::new(if game.auto_attack {"Вкл"} else {"Выкл"}).size(11.0));});
                 let (rect,response)=ui.allocate_exact_size(vec2(56.0,30.0),Sense::click());
                 let t=ctx.animate_bool(response.id,game.auto_attack);
                 ui.painter().rect_filled(rect,15.0,if game.auto_attack {GREEN} else {C::from_rgb(155,165,151)});

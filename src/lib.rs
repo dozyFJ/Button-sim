@@ -96,9 +96,26 @@ fn nav_icon(p: &egui::Painter, center: egui::Pos2, index: usize, color: egui::Co
     }
 }
 
+fn theme_color(dark: bool, light: [u8; 3], night: [u8; 3]) -> egui::Color32 {
+    let [r, g, b] = if dark { night } else { light };
+    egui::Color32::from_rgb(r, g, b)
+}
+
+fn apply_theme(ctx: &egui::Context, dark: bool) {
+    let mut visuals = if dark { egui::Visuals::dark() } else { egui::Visuals::light() };
+    visuals.panel_fill = theme_color(dark, [246,238,211], [24,31,29]);
+    visuals.window_fill = theme_color(dark, [250,244,222], [31,40,36]);
+    visuals.selection.bg_fill = theme_color(dark, [93,161,71], [51,103,74]);
+    visuals.override_text_color = Some(theme_color(dark, [39,54,41], [232,239,230]));
+    ctx.set_visuals(visuals);
+}
+
 fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     use egui::{Color32 as C,RichText as T,Rect,vec2};
     use gui_state::{GuiState,Panel,Modal};
+    if ctx.style().visuals.dark_mode != game.dark_mode || ctx.style().visuals.override_text_color.is_none() {
+        apply_theme(ctx, game.dark_mode);
+    }
     let mut state=GuiState::load(ctx);
     match game.tab {
         game::Tab::Statistics=>{state.profile(true);game.tab=game::Tab::Home;}
@@ -115,8 +132,7 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     game.pets_open=state.panel==Panel::Pets;game.interface_open=state.busy();
     let workspace=ctx.available_rect();
     let blocked=game.paused||game.hatch.is_some()||game.interface_open;
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(C::from_rgb(166,207,224)).inner_margin(egui::Margin::same(if game.tab==game::Tab::Capsules {10.0} else {0.0}))).show(ctx,|ui| {
-        ui.visuals_mut().override_text_color=Some(C::from_rgb(39,54,41));
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(theme_color(game.dark_mode, [166,207,224], [15,23,24])).inner_margin(egui::Margin::same(if game.tab==game::Tab::Capsules {10.0} else {0.0}))).show(ctx,|ui| {
         ui.add_enabled_ui(!blocked,|ui| {
             if game.tab==game::Tab::Capsules {
                 pet_ui::shop(ui,game);
@@ -155,12 +171,7 @@ impl ApplicationHandler for App {
         fonts.font_data.insert("ButtonSans".into(), egui::FontData::from_static(include_bytes!("../assets/fonts/ButtonSans-Regular.ttf")).into());
         fonts.families.get_mut(&egui::FontFamily::Proportional).expect("proportional font family").insert(0, "ButtonSans".into());
         egui.set_fonts(fonts);
-        let mut visuals = egui::Visuals::light();
-        visuals.panel_fill = egui::Color32::from_rgb(246,238,211);
-        visuals.window_fill = egui::Color32::from_rgb(250,244,222);
-        visuals.selection.bg_fill = egui::Color32::from_rgb(93,161,71);
-        visuals.override_text_color = Some(egui::Color32::from_rgb(39,54,41));
-        egui.set_visuals(visuals);
+        apply_theme(&egui, self.game.dark_mode);
         let state = egui_winit::State::new(egui.clone(), egui::ViewportId::ROOT, &window, Some(window.scale_factor() as f32), None, None);
         let renderer = egui_wgpu::Renderer::new(&gpu.device, gpu.config.format, None, 1, false);
         self.gfx = Some(Graphics { gpu, egui, state, renderer });
@@ -178,7 +189,7 @@ impl ApplicationHandler for App {
                 let now = Instant::now();
                 let dt = now.duration_since(self.last_tick.replace(now).unwrap_or(now)).as_secs_f64().min(0.25);
                 self.game.tick(dt);
-                let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch);
+                let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch, self.game.dark_mode);
                 let input = g.state.take_egui_input(&g.gpu.window);
                 let mut update_requested = false;
                 let update_error = self.update_error.clone();
@@ -187,7 +198,7 @@ impl ApplicationHandler for App {
                     save_game(&self.game, self.save_path.as_deref());
                     self.update_error = updates::open().err();
                 }
-                let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch);
+                let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch, self.game.dark_mode);
                 if before != after || self.last_save.map(|t| now.duration_since(t).as_secs() >= 5).unwrap_or(true) {
                     save_game(&self.game, self.save_path.as_deref());
                     self.last_save = Some(now);

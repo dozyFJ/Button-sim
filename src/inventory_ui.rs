@@ -1,10 +1,10 @@
 use egui::{Color32 as C,RichText as T,Rect,Sense,Stroke,Align2,vec2,pos2};
 use crate::{game::{Game,PetKind,Tab},gui_state::{GuiState,Panel,PetAction},pet_render,panels_ui};
-const INK:C=C::from_rgb(39,54,41);const GREEN:C=C::from_rgb(93,161,71);
+const GREEN:C=C::from_rgb(93,161,71);
 pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState) {
     if state.panel!=Panel::Pets {return;}
     let rect=workspace.shrink(8.0);
-    egui::Window::new("pets_inventory").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(panels_ui::frame()).show(ctx,|ui| {
+    egui::Window::new("pets_inventory").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(panels_ui::frame(ctx)).show(ctx,|ui| {
         if panels_ui::heading(ui,"Питомцы") {state.close();}
         ui.horizontal_wrapped(|ui| {ui.label(T::new(format!("Надето {}/3",game.equipped_pets.len())).strong());ui.label(format!("Инвентарь {}/1000",game.pets.len()));
             ui.label("Поиск");ui.add(egui::TextEdit::singleline(&mut state.search).hint_text("Имя или редкость").desired_width(160.0));
@@ -37,12 +37,12 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
                 for row in filtered.chunks(columns) {ui.horizontal(|ui| {ui.spacing_mut().item_spacing.x=3.0;
                     for &index in row {
                         let pet=game.pets[index];let (r,response)=ui.allocate_exact_size(vec2(tile-3.0,94.0),Sense::click());let p=ui.painter();let selected=state.selected_pet==Some(index);let equipped=game.equipped_pets.contains(&index);
-                        p.rect_filled(r,0.0,C::from_rgb(230,235,207));p.rect_stroke(r,0.0,Stroke::new(if selected {3.0_f32} else {1.0_f32},if selected {C::from_rgb(221,166,52)} else {C::from_rgb(153,173,117)}));
+                        p.rect_filled(r,0.0,crate::theme_color(ui.visuals().dark_mode, [230,235,207], [40,53,46]));p.rect_stroke(r,0.0,Stroke::new(if selected {3.0_f32} else {1.0_f32},if selected {C::from_rgb(221,166,52)} else {crate::theme_color(ui.visuals().dark_mode, [153,173,117], [94,110,97])}));
                         pet_render::pet(p,Rect::from_min_max(r.min+vec2(5.0,3.0),r.max-vec2(5.0,30.0)),pet,game.played_seconds as f32);
-                        p.text(r.left_top()+vec2(5.0,5.0),Align2::LEFT_TOP,(index+1).to_string(),egui::FontId::proportional(9.0),INK);
+                        p.text(r.left_top()+vec2(5.0,5.0),Align2::LEFT_TOP,(index+1).to_string(),egui::FontId::proportional(9.0),ui.visuals().text_color());
                         if equipped {p.circle_filled(r.right_top()+vec2(-8.0,8.0),4.0,GREEN);}
-                        p.text(r.center_bottom()-vec2(0.0,21.0),Align2::CENTER_CENTER,pet.name(),egui::FontId::proportional(10.0),INK);
-                        p.text(r.center_bottom()-vec2(0.0,8.0),Align2::CENTER_CENTER,format!("×{:.1}",pet.bonus()),egui::FontId::proportional(9.0),INK);
+                        p.text(r.center_bottom()-vec2(0.0,21.0),Align2::CENTER_CENTER,pet.name(),egui::FontId::proportional(10.0),ui.visuals().text_color());
+                        p.text(r.center_bottom()-vec2(0.0,8.0),Align2::CENTER_CENTER,format!("×{:.1}",pet.bonus()),egui::FontId::proportional(9.0),ui.visuals().text_color());
                         if response.clicked()&&state.pending.is_none() {state.selected_pet=Some(index);}
                     }
                 });ui.add_space(4.0);}
@@ -57,7 +57,7 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
                     ui.add_enabled_ui(!game.paused&&state.pending.is_none(),|ui| {
                         let equipped=game.equipped_pets.contains(&index);
                         let label=if equipped {"Снять"} else if game.equipped_pets.len()==3 {"Надеть · заменить 3-го"} else {"Надеть"};
-                        if ui.add_sized(vec2(ui.available_width(),32.0),egui::Button::new(label).fill(GREEN)).clicked() {if equipped {game.unequip_pet(index);} else {game.equip_pet(index);}}
+                        if ui.add_sized(vec2(ui.available_width(),32.0),egui::Button::new(label).fill(ui.visuals().selection.bg_fill)).clicked() {if equipped {game.unequip_pet(index);} else {game.equip_pet(index);}}
                         if ui.add_sized(vec2(ui.available_width(),30.0),egui::Button::new("Удалить")).clicked() {state.pending=Some(PetAction::Delete(index));}
                         let can_craft=game.craft_materials(index).is_some();
                         if ui.add_enabled(can_craft,egui::Button::new("Крафт · 3 одинаковых").min_size(vec2(ui.available_width(),32.0))).clicked() {state.pending=Some(PetAction::Craft(index));}
@@ -71,7 +71,7 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
         let index=match action {PetAction::Delete(i)|PetAction::Craft(i)=>i};
         if index>=game.pets.len() {state.pending=None;return;}
         let pet=game.pets[index];let rect=Rect::from_center_size(workspace.center(),vec2((workspace.width()-32.0).min(390.0),(workspace.height()-24.0).min(220.0)));
-        egui::Window::new("pet_confirmation").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(panels_ui::frame()).show(ctx,|ui| {
+        egui::Window::new("pet_confirmation").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(panels_ui::frame(ctx)).show(ctx,|ui| {
             ui.heading(if matches!(action,PetAction::Delete(_)) {"Удалить питомца?"} else {"Крафт питомца"});
             match action {
                 PetAction::Delete(_) => {ui.label(format!("{} будет удалён из инвентаря. Действие нельзя отменить.",pet.name()));}

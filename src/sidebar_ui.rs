@@ -2,22 +2,22 @@
 use egui::{Align2, Color32 as C, FontId, RichText as T, Sense, vec2};
 use crate::{amount, game::{Game, Tab}, gui_state::{GuiState, Modal, Panel}, nav_icon};
 
-const INK: C = C::from_rgb(39, 54, 41);
 const GREEN: C = C::from_rgb(93, 161, 71);
 pub const HEADER: f32 = 88.0;
 pub const DOCK: f32 = 64.0;
 
 fn pill(ui: &mut egui::Ui, label: &str, icon: usize, active: bool) -> bool {
-    let color = if active { C::BLACK } else { INK };
+    let dark = ui.visuals().dark_mode;
+    let color = if active && !dark { C::BLACK } else { ui.visuals().text_color() };
     let text = ui.painter().layout_no_wrap(label.to_owned(), FontId::proportional(13.0), color);
     let (rect, response) = ui.allocate_exact_size(vec2(51.0 + text.size().x, 40.0), Sense::click());
     let painter = ui.painter();
     let fill = if active {
-        GREEN
+        crate::theme_color(dark, [93,161,71], [45,104,72])
     } else if response.hovered() {
-        C::from_rgb(216, 229, 192)
+        crate::theme_color(dark, [216,229,192], [52,67,59])
     } else {
-        C::from_rgb(230, 233, 207)
+        crate::theme_color(dark, [230,233,207], [37,49,43])
     };
     painter.rect_filled(rect, 20.0, fill);
     let icon_center = rect.left_center() + vec2(22.0, 0.0);
@@ -34,7 +34,7 @@ fn pill(ui: &mut egui::Ui, label: &str, icon: usize, active: bool) -> bool {
 pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
     let enabled = !game.paused && game.hatch.is_none();
     egui::TopBottomPanel::top("portrait_header").exact_height(HEADER).resizable(false)
-        .frame(egui::Frame::none().fill(C::from_rgb(246,238,211)).inner_margin(egui::Margin::same(8.0))).show(ctx, |ui| {
+        .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill).inner_margin(egui::Margin::same(8.0))).show(ctx, |ui| {
         ui.horizontal(|ui| {
             let profile = ui.add_enabled(enabled, egui::Button::new("").min_size(vec2(38.0, 34.0)))
                 .on_hover_text("Профиль");
@@ -55,32 +55,41 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                 .show(ui, |ui| {
                     ui.horizontal_centered(|ui| {
                         ui.set_min_height(34.0);
-                        ui.label(T::new(format!("$ {}", amount(game.coins))).size(19.0).strong().color(INK));
+                        ui.label(T::new(format!("$ {}", amount(game.coins))).size(19.0).strong());
                         ui.add_space(12.0);
-                        ui.label(T::new(format!("↻ {}", game.rebirths)).size(17.0).color(INK)).on_hover_text("Ребёрты");
+                        ui.label(T::new(format!("↻ {}", game.rebirths)).size(17.0)).on_hover_text("Ребёрты");
                         ui.add_space(12.0);
-                        ui.label(T::new(format!("+{} / сек", amount(game.coins_per_second()))).size(13.0).color(INK));
+                        ui.label(T::new(format!("+{} / сек", amount(game.coins_per_second()))).size(13.0));
                     });
                 });
-            if ui.add_sized(vec2(38.0, 34.0), egui::Button::new(if game.paused { "▶" } else { "Ⅱ" }))
-                .on_hover_text("Пауза").clicked()
-            {
-                game.paused = !game.paused;
+            let pause = ui.add(egui::Button::new("").min_size(vec2(38.0, 34.0)))
+                .on_hover_text(if game.paused { "Продолжить" } else { "Пауза" });
+            let center = pause.rect.center();
+            let color = ui.style().interact(&pause).fg_stroke.color;
+            if game.paused {
+                ui.painter().add(egui::Shape::convex_polygon(
+                    vec![center + vec2(-4.0,-6.0), center + vec2(6.0,0.0), center + vec2(-4.0,6.0)],
+                    color, egui::Stroke::NONE,
+                ));
+            } else {
+                for x in [-3.0, 3.0] {
+                    ui.painter().line_segment([center + vec2(x,-5.0), center + vec2(x,5.0)], egui::Stroke::new(2.0, color));
+                }
             }
+            if pause.clicked() { game.paused = !game.paused; }
         });
         ui.horizontal(|ui| {
             let xp = format!("Уровень {}  ·  {} / 100 XP", game.level(), game.taps % 100);
             ui.add(egui::ProgressBar::new(game.level_progress())
                 .desired_width((ui.available_width() - 44.0).max(0.0)).fill(GREEN).text(xp));
-            if ui.add_enabled(enabled, egui::Button::new("▥").min_size(vec2(36.0, 24.0)))
-                .on_hover_text("Статистика").clicked()
-            {
-                state.profile(true);
-            }
+            let stats = ui.add_enabled(enabled, egui::Button::new("").min_size(vec2(36.0, 26.0)))
+                .on_hover_text("Статистика");
+            nav_icon(ui.painter(), stats.rect.center(), 3, ui.style().interact(&stats).fg_stroke.color);
+            if stats.clicked() { state.profile(true); }
         });
     });
     egui::TopBottomPanel::bottom("portrait_dock").exact_height(DOCK).resizable(false)
-        .frame(egui::Frame::none().fill(C::from_rgb(246,238,211)).inner_margin(egui::Margin::same(8.0))).show(ctx,|ui| {
+        .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill).inner_margin(egui::Margin::same(8.0))).show(ctx,|ui| {
         ui.horizontal_centered(|ui| {
             if ui.add_enabled(state.sidebar_scroll>0.0,egui::Button::new("‹").min_size(vec2(26.0,40.0))).clicked() {state.sidebar_scroll=(state.sidebar_scroll-148.0).max(0.0);}
             let width=(ui.available_width()-34.0).max(80.0);
