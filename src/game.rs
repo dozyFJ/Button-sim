@@ -382,7 +382,7 @@ mod tests {
         let game = Game { dark_mode: true, ..Game::default() };
         let save = game.save_text();
         assert!(Game::from_save(&save).unwrap().dark_mode);
-        let old_save = save.lines().take(8).collect::<Vec<_>>().join("\n");
+        let old_save = save.lines().take(9).collect::<Vec<_>>().join("\n");
         assert!(!Game::from_save(&old_save).unwrap().dark_mode);
     }
 
