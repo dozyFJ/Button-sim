@@ -1,6 +1,6 @@
 //! One vertically scrolling field; metadata is part of the animated switch face.
 use egui::{Color32 as C,Rect,Stroke,Sense,Shape,pos2,vec2};
-use crate::game::Game;
+use crate::{amount, game::{Game, Tab}};
 fn draw_floor(ui: &egui::Ui, view: Rect, dark: bool) {
     let painter = ui.painter().with_clip_rect(view);
     let base = crate::theme_color(dark, [119,159,85], [24,26,46]);
@@ -30,12 +30,22 @@ fn draw_floor(ui: &egui::Ui, view: Rect, dark: bool) {
 
 pub fn show(ui:&mut egui::Ui,game:&mut Game) {
     let dark = game.dark_mode;
+    let rebirths = game.tab == Tab::Rebirths;
+    draw_floor(ui, ui.available_rect_before_wrap(), dark);
+    if rebirths {
+        egui::Frame::none().fill(ui.visuals().panel_fill).inner_margin(egui::Margin::same(8.0)).show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(egui::RichText::new("Плитки ребёрта").strong());
+            ui.label(format!("Ребёрты: {}  ·  Множитель ×{}", game.rebirths, amount(game.multiplier as f64)));
+        });
+    }
     let view = ui.available_rect_before_wrap();
-    draw_floor(ui, view, dark);
     let columns=(view.width()/155.0).floor().clamp(2.0,6.0) as usize;
     let gap=10.0;let side=(view.width()-16.0-(columns-1) as f32*gap)/columns as f32;
-    let height=side*0.86;let count=game.switches.len();let rows=count.div_ceil(columns);
-    egui::ScrollArea::vertical().id_salt("vertical_switch_field").auto_shrink([false,false]).max_height(view.height())
+    let height = side * 0.86;
+    let count = if rebirths { (game.rebirths as usize + 12).max(32) } else { game.switches.len() };
+    let rows = count.div_ceil(columns);
+    egui::ScrollArea::vertical().id_salt(("vertical_switch_field", rebirths)).auto_shrink([false,false]).max_height((view.height() - 65.0).max(0.0))
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible).show_rows(ui,height+gap,rows,|ui,range| {
         for row in range {ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x=gap;
@@ -43,8 +53,11 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 let index=row*columns+col;if index>=count {break;}
                 let (r,response)=ui.allocate_exact_size(vec2(side,height),Sense::click());let p=ui.painter();
                 if !ui.is_rect_visible(r) {continue;}
-                let unlocked=game.switch_unlocked(index);let selected=game.selected_switch==index;
-                let t=ui.ctx().animate_bool_with_time(ui.id().with(("switch",index)),game.switches[index],0.16);
+                let completed = rebirths && index < game.rebirths as usize;
+                let selected = if rebirths { index == game.rebirths as usize } else { index == game.selected_switch };
+                let unlocked = if rebirths { completed || selected && game.coins >= game.rebirth_price() } else { game.switch_unlocked(index) };
+                let active = if rebirths { completed } else { game.switches[index] };
+                let t = ui.ctx().animate_bool_with_time(ui.id().with(("switch", index)), active, 0.16);
                 let tilt=(t-0.5)*8.0;
                 let face=[r.left_top()+vec2(9.0,8.0+tilt),r.right_top()+vec2(-9.0,8.0+tilt),r.right_bottom()+vec2(-4.0,-16.0-tilt),r.left_bottom()+vec2(4.0,-16.0-tilt)];
                 let depth = vec2(3.0, 8.0);
@@ -62,7 +75,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 ));
                 let fill = if !unlocked {
                     crate::theme_color(dark, [165,170,150], [40,39,61])
-                } else if game.switches[index] {
+                } else if active {
                     crate::theme_color(dark, [140,191,105], [29,110,105])
                 } else {
                     crate::theme_color(dark, [231,190,119], [61,48,110])
@@ -75,15 +88,28 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 for (y, width) in [(0.0, 13.0), (3.0, 7.0), (6.0, 3.0)] {
                     p.rect_filled(Rect::from_min_size(face[0] + vec2(5.0, 5.0 + y), vec2(width, 3.0)), 0.0, highlight);
                 }
-                let max_hp = Game::switch_max_hp(index);
-                let hp = game.switch_hp(index);
-                crate::surface_gui::paint(p, face, &[
-                    format!("#{}", index + 1), format!("{hp}/{max_hp}"), "НАГР +1".into(),
-                    format!("УР {}", Game::switch_required_level(index)),
-                    format!("Р {}", Game::switch_rarity(index)),
-                ], crate::theme_color(dark, [45,62,38], [247,243,255]), hp as f32 / max_hp as f32);
-                if response.clicked() {game.tap_switch(index);}
-                if selected&&!game.equipped_pets.is_empty() {
+                let ink = crate::theme_color(dark, [45,62,38], [247,243,255]);
+                if rebirths {
+                    let price = Game::rebirth_price_at(index as u32);
+                    let status = if completed { "ГОТОВО" } else if selected { "СЛЕД." } else { "ЗАКРЫТО" };
+                    crate::surface_gui::paint(p, face, &[
+                        format!("РЕБЕРТ {}", index + 1),
+                        format!("ЦЕНА {}", amount(price)),
+                        "ДОХОД X2".into(),
+                        status.into(),
+                    ], ink, None);
+                    if selected && response.clicked() { game.rebirth(); }
+                } else {
+                    let max_hp = Game::switch_max_hp(index);
+                    let hp = game.switch_hp(index);
+                    crate::surface_gui::paint(p, face, &[
+                        format!("#{}", index + 1), format!("{hp}/{max_hp}"), "НАГР +1".into(),
+                        format!("УР {}", Game::switch_required_level(index)),
+                        format!("РБ {} · {}", Game::switch_required_rebirths(index), Game::switch_rarity(index)),
+                    ], ink, Some(hp as f32 / max_hp as f32));
+                    if response.clicked() { game.tap_switch(index); }
+                }
+                if !rebirths && selected && !game.equipped_pets.is_empty() {
                     crate::pet_ui::attack_scene(p,Rect::from_center_size(r.center(),r.size()),r.center(),side*0.62,game);
                 }
             }

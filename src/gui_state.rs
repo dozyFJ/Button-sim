@@ -2,7 +2,7 @@ use egui::{Context,Id};
 #[derive(Clone,Copy,Debug,Default,PartialEq,Eq)]
 pub enum Panel {#[default] None,Profile,Pets}
 #[derive(Clone,Copy,Debug,Default,PartialEq,Eq)]
-pub enum Modal {#[default] None,Upgrades,Rebirths,Settings,Shop}
+pub enum Modal {#[default] None,Upgrades,Settings,Shop}
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum PetAction {Delete(usize),Craft(usize)}
 #[derive(Clone,Default)]

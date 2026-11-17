@@ -33,7 +33,7 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
         let rect=Rect::from_center_size(workspace.center(),vec2((workspace.width()-28.0).min(560.0),(workspace.height()-24.0).min(470.0)));
         let modal=state.modal;
         egui::Window::new("game_modal").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(frame(ctx)).show(ctx,|ui| {
-            if heading(ui,match modal {Modal::Upgrades=>"Улучшения",Modal::Rebirths=>"Множитель и ребёрт",Modal::Settings=>"Настройки",Modal::Shop=>"Магазин",Modal::None=>""}) {state.close();}
+            if heading(ui,match modal {Modal::Upgrades=>"Улучшения",Modal::Settings=>"Настройки",Modal::Shop=>"Магазин",Modal::None=>""}) {state.close();}
             egui::ScrollArea::vertical().id_salt(("modal_cards",modal==Modal::Upgrades)).show(ui,|ui| {
                 if modal==Modal::Settings {
                     ui.checkbox(&mut game.dark_mode, "Тёмная тема");
@@ -62,22 +62,6 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
                                 if ui.add_enabled(!game.paused&&game.coins>=cost,egui::Button::new(format!("Улучшить · {} денег",amount(cost))).fill(ui.visuals().selection.bg_fill)).clicked() {game.upgrade();}
                                 if game.coins<cost {ui.label(T::new(format!("Не хватает {} денег",amount(cost-game.coins))).size(11.0));}
                             } else {ui.add_enabled(false,egui::Button::new(format!("После предыдущего · {} денег",amount(cost))));}
-                        });ui.add_space(8.0);
-                    }
-                } else {
-                    card(ui, "Текущий множитель", &format!("×{}", amount(game.multiplier as f64)));
-                    card(ui, "Бонус ребёртов", &format!("×{}", amount(game.rebirth_bonus())));
-                    ui.label("Ребёрт сбросит деньги, множитель и улучшения. Питомцы, уровень и статистика останутся.");
-                    for step in 0..3 {
-                        let count=game.rebirths+step;
-                        egui::Frame::none().fill(crate::theme_color(ui.visuals().dark_mode, [245,226,185], [62,51,36])).inner_margin(egui::Margin::same(12.0)).show(ui,|ui| {
-                            ui.set_min_width((ui.available_width()-2.0).max(120.0));ui.label(T::new(format!("Ребёрт {}",count+1)).strong());
-                            ui.label(format!("Постоянный бонус ×{} → ×{}",amount(2.0_f64.powi(count.min(30) as i32)),amount(2.0_f64.powi((count+1).min(30) as i32))));
-                            let cost=10_000.0*10.0_f64.powi(count.min(30) as i32);
-                            if step==0 {
-                                if ui.add_enabled(!game.paused&&game.coins>=cost,egui::Button::new(format!("Сделать ребёрт · {} денег",amount(cost))).fill(crate::theme_color(ui.visuals().dark_mode, [225,176,77], [111,77,30]))).clicked() {game.rebirth();}
-                                if game.coins<cost {ui.label(T::new(format!("Не хватает {} денег",amount(cost-game.coins))).size(11.0));}
-                            } else {ui.add_enabled(false,egui::Button::new(format!("Следующий · {} денег",amount(cost))));}
                         });ui.add_space(8.0);
                     }
                 }

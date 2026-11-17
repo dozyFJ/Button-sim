@@ -124,7 +124,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                             if tile(ui,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
                             if tile(ui,"Апгрейд",2,state.modal==Modal::Upgrades) {state.modal(Modal::Upgrades);}
                             if tile(ui,"Питомцы",5,state.panel==Panel::Pets) {if state.panel==Panel::Pets {state.close();} else {state.pets();}}
-                            if tile(ui,"Ребёрты",4,state.modal==Modal::Rebirths) {state.modal(Modal::Rebirths);}
+                            if tile(ui,"Ребёрты",4,game.tab==Tab::Rebirths&&!state.busy()) {state.close();game.tab=Tab::Rebirths;}
                             if tile(ui,"Настройки",6,state.modal==Modal::Settings) {state.modal(Modal::Settings);}
                             if tile(ui,"Магазин",7,state.modal==Modal::Shop) {state.modal(Modal::Shop);}
                         });

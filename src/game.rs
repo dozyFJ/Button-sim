@@ -64,7 +64,14 @@ impl Game {
         if hits % 2 == 1 { self.switches[target] = !self.switches[target]; }
     }
     pub fn switch_required_level(index:usize)->u64 { if index<5 {1} else {(index-3) as u64} }
-    pub fn switch_unlocked(&self,index:usize)->bool { index<self.grid_size*self.grid_size&&index<self.switches.len()&&self.level()>=Self::switch_required_level(index) }
+    pub fn switch_required_rebirths(index: usize) -> u32 {
+        if index < 5 { 0 } else { 1 + ((index - 5) / 10) as u32 }
+    }
+    pub fn switch_unlocked(&self,index:usize)->bool {
+        index < self.grid_size * self.grid_size && index < self.switches.len()
+            && self.level() >= Self::switch_required_level(index)
+            && self.rebirths >= Self::switch_required_rebirths(index)
+    }
     pub fn set_grid_size(&mut self,size:usize)->bool {
         if self.paused||self.hatch.is_some()||![8,32].contains(&size) {return false;}
         self.grid_size=size;if self.selected_switch>=size*size {self.selected_switch=0;self.attack_clock=0.0;} true
@@ -107,7 +114,7 @@ impl Game {
         1.0+self.equipped_pets.iter().filter_map(|&i|self.pets.get(i)).map(|p|p.bonus()-1.0).sum::<f64>()
     }
     pub fn attack_running(&self)->bool {
-        self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.interface_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)
+        self.tab != Tab::Rebirths && self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.interface_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)
     }
     pub fn toggle_auto_attack(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.pets_open||self.equipped_pets.is_empty() { return false; }
@@ -128,7 +135,8 @@ impl Game {
         if self.paused||self.hatch.is_some()||self.coins<cost { return false; }
         self.coins-=cost; self.upgrades=self.upgrades.saturating_add(1); self.base_income+=1.0; true
     }
-    pub fn rebirth_price(&self)->f64 { 10_000.0*10.0_f64.powi(self.rebirths.min(30) as i32) }
+    pub fn rebirth_price_at(rebirths: u32) -> f64 { 10_000.0 * 10.0_f64.powi(rebirths.min(30) as i32) }
+    pub fn rebirth_price(&self)->f64 { Self::rebirth_price_at(self.rebirths) }
     pub fn rebirth(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.coins<self.rebirth_price() { return false; }
         self.coins=0.0; self.multiplier=1; self.base_income=1.0; self.upgrades=0;
@@ -340,7 +348,10 @@ mod tests {
     #[test] fn starter_switches_and_level_locks() {
         let mut g=Game::default();for i in 0..5 {assert!(g.switch_unlocked(i));}
         assert!(!g.tap_switch(5));assert_eq!(g.taps,0);
-        for _ in 0..100 {g.tap();}assert!(g.tap_switch(5));assert_eq!(g.selected_switch,5);
+        for _ in 0..100 {g.tap();}
+        assert!(!g.tap_switch(5));
+        g.coins=g.rebirth_price();assert!(g.rebirth());
+        assert!(g.tap_switch(5));assert_eq!(g.selected_switch,5);
         assert!(!g.tap_switch(1024));assert_eq!(g.taps,101);
     }
     #[test] fn board_state_saves_and_autoattacks_selected_tile() {

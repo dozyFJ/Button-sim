@@ -110,10 +110,10 @@ fn apply_theme(ctx: &egui::Context, dark: bool) {
     ctx.set_visuals(visuals);
 }
 
-fn board_swipe_right(
+fn board_swipe(
     ctx: &egui::Context, field: egui::Rect, controls: egui::Rect,
     start: &mut Option<(egui::TouchId, egui::Pos2)>,
-) -> bool {
+) -> Option<game::Tab> {
     ctx.input(|input| {
         for event in &input.events {
             let egui::Event::Touch { id, phase, pos, .. } = event else { continue; };
@@ -124,14 +124,14 @@ fn board_swipe_right(
                 egui::TouchPhase::End | egui::TouchPhase::Cancel if start.is_some_and(|(touch, _)| touch == *id) => {
                     let (_, origin) = start.take().unwrap();
                     let delta = *pos - origin;
-                    if *phase == egui::TouchPhase::End && delta.x >= 55.0 && delta.x >= 1.65 * delta.y.abs() {
-                        return true;
+                    if *phase == egui::TouchPhase::End && delta.x.abs() >= 55.0 && delta.x.abs() >= 1.65 * delta.y.abs() {
+                        return Some(if delta.x > 0.0 { game::Tab::Rebirths } else { game::Tab::Home });
                     }
                 }
                 _ => {}
             }
         }
-        false
+        None
     })
 }
 
@@ -145,7 +145,6 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     match game.tab {
         game::Tab::Statistics=>{state.profile(true);game.tab=game::Tab::Home;}
         game::Tab::Upgrades=>{state.modal(Modal::Upgrades);game.tab=game::Tab::Home;}
-        game::Tab::Rebirths=>{state.modal(Modal::Rebirths);game.tab=game::Tab::Home;}
         _=>{}
     }
     if game.hatch.is_some() {
@@ -166,10 +165,15 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     });
     panels_ui::draw(ctx,workspace,game,&mut state);
     inventory_ui::draw(ctx,workspace,game,&mut state);
-    if game.tab == game::Tab::Home && !blocked {
+    if matches!(game.tab, game::Tab::Home | game::Tab::Rebirths) && !blocked {
+        let previous = game.tab;
         let controls = pet_ui::board_controls(ctx, workspace, game, &mut state);
-        if !state.busy() && board_swipe_right(ctx, workspace, controls, &mut state.board_swipe) {
-            state.modal(Modal::Rebirths);
+        if !state.busy() && game.tab == previous {
+            if let Some(tab) = board_swipe(ctx, workspace, controls, &mut state.board_swipe) {
+                game.tab = tab;
+            }
+        } else {
+            state.board_swipe = None;
         }
     } else {
         state.board_swipe = None;
@@ -338,6 +342,21 @@ mod layout_tests {
                 assert!(balance.bottom() < sidebar_ui::HEADER && clip.contains_rect(balance), "{balance:?}, {clip:?}");
             }
         }
+    }
+    #[test]
+    fn second_board_shows_rebirths_and_current_page() {
+        let ctx = egui::Context::default();
+        let mut game = game::Game::default();
+        game.tab = game::Tab::Rebirths;
+        render(&ctx, &mut game, 360.0, 740.0);
+        let out = render(&ctx, &mut game, 360.0, 740.0);
+        let labels: Vec<_> = out.shapes.iter().filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+            _ => None,
+        }).collect();
+        assert!(labels.contains(&"Плитки ребёрта"));
+        assert!(labels.contains(&"Страница 2/2"));
+        assert!(!labels.contains(&"Автоатака"));
     }
     #[test] fn profile_and_inventory_are_context_frames_to_the_right_of_navigation() {
         let ctx=egui::Context::default();let mut g=game::Game::default();let mut state=gui_state::GuiState::default();state.profile(true);state.store(&ctx);

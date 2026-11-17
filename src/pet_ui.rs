@@ -120,12 +120,25 @@ pub fn attack_scene(p:&egui::Painter,rect:Rect,center:egui::Pos2,button_size:f32
 }
 
 pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut crate::gui_state::GuiState) -> Rect {
-    let size=vec2(192.0,62.0);
-    egui::Area::new(egui::Id::new("canvas_auto_attack")).order(egui::Order::Foreground)
-        .fixed_pos(workspace.right_bottom()-size-vec2(12.0,12.0)).show(ctx,|ui| {
-        egui::Frame::none().fill(ctx.style().visuals.panel_fill).rounding(18.0).inner_margin(egui::Margin::same(10.0)).show(ui,|ui| {
-            ui.set_width(size.x-20.0);
+    let first_page = game.tab == crate::game::Tab::Home;
+    let width: f32 = if first_page { 254.0 } else { 126.0 };
+    let size = vec2(width.min((workspace.width() - 16.0).max(0.0)), 54.0);
+    egui::Area::new(egui::Id::new("canvas_page_controls")).order(egui::Order::Foreground)
+        .fixed_pos(workspace.right_bottom() - size - vec2(8.0, 8.0)).show(ctx, |ui| {
+        egui::Frame::none().fill(ctx.style().visuals.panel_fill).rounding(14.0).inner_margin(egui::Margin::same(8.0)).show(ui, |ui| {
             ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    let mut page = if first_page { 1 } else { 2 };
+                    ui.label(format!("Страница {page}/2"));
+                    ui.spacing_mut().slider_width = 74.0;
+                    if ui.add(egui::Slider::new(&mut page, 1..=2).show_value(false))
+                        .on_hover_text("Множитель / Ребёрты").changed()
+                    {
+                        game.tab = if page == 1 { crate::game::Tab::Home } else { crate::game::Tab::Rebirths };
+                    }
+                });
+                if !first_page { return; }
+                ui.separator();
                 ui.vertical(|ui| {ui.label(T::new("Автоатака").strong());ui.label(T::new(if game.auto_attack {"Вкл"} else {"Выкл"}).size(11.0));});
                 let (rect,response)=ui.allocate_exact_size(vec2(56.0,30.0),Sense::click());
                 let t=ctx.animate_bool(response.id,game.auto_attack);
