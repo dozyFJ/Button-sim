@@ -188,6 +188,7 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     if matches!(game.tab, game::Tab::Home | game::Tab::Rebirths) && !blocked {
         let previous = game.tab;
         let controls = pet_ui::board_controls(ctx, workspace, game, &mut state);
+        if game.tab == game::Tab::Home { pet_ui::boost_status(ctx, workspace, controls, game); }
         if !state.busy() && game.tab == previous {
             if let Some(tab) = board_swipe(ctx, workspace, controls, &mut state.board_swipe) {
                 game.tab = tab;
@@ -378,6 +379,24 @@ mod layout_tests {
         }).collect();
         assert!(labels.contains(&"Плитки ребёрта"));
         assert!(!labels.contains(&"Автоатака"));
+    }
+    #[test]
+    fn boost_hud_shows_only_active_names_and_timers() {
+        let ctx = egui::Context::default();
+        let mut game = game::Game::default();
+        game.played_seconds = 10.0;
+        game.active_boosts = vec![
+            game::ActiveBoost { name: "×2 доход".into(), expires_at: 75.0 },
+            game::ActiveBoost { name: "Истёк".into(), expires_at: 10.0 },
+        ];
+        render(&ctx, &mut game, 360.0, 740.0);
+        let out = render(&ctx, &mut game, 360.0, 740.0);
+        let labels: Vec<_> = out.shapes.iter().filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+            _ => None,
+        }).collect();
+        assert!(labels.contains(&"×2 доход") && labels.contains(&"1:05"));
+        assert!(!labels.contains(&"Истёк"));
     }
     #[test] fn profile_and_inventory_are_context_frames_to_the_right_of_navigation() {
         let ctx=egui::Context::default();let mut g=game::Game::default();let mut state=gui_state::GuiState::default();state.profile(true);state.store(&ctx);

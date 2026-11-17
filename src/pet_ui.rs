@@ -150,3 +150,29 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
         });
     }).response.rect
 }
+
+pub fn boost_status(ctx: &egui::Context, workspace: Rect, controls: Rect, game: &Game) {
+    if game.active_boosts.is_empty() { return; }
+    let left = workspace.left() + 12.0;
+    let right = controls.left() - 8.0;
+    if right <= left { return; }
+    let area = Rect::from_min_max(pos2(left, workspace.top()), pos2(right, workspace.bottom()));
+    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("boost_status")))
+        .with_clip_rect(area);
+    let active = game.active_boosts.iter().filter(|boost| boost.expires_at.is_finite() && boost.expires_at > game.played_seconds);
+    for (row, boost) in active.enumerate() {
+        let y = controls.center().y - 16.0 - row as f32 * 36.0;
+        if y < area.top() { break; }
+        let seconds = (boost.expires_at - game.played_seconds).ceil() as u64;
+        let timer = format!("{}:{:02}", seconds / 60, seconds % 60);
+        for (text, y, size) in [(boost.name.as_str(), y, 15.0), (timer.as_str(), y + 17.0, 12.0)] {
+            let font = egui::FontId::proportional(size);
+            let measured = painter.layout_no_wrap(text.to_owned(), font, C::WHITE);
+            let size = size * (area.width() / measured.size().x.max(1.0)).min(1.0);
+            let font = egui::FontId::proportional(size);
+            let position = pos2(left, y);
+            painter.text(position + vec2(1.0, 1.5), Align2::LEFT_TOP, text, font.clone(), C::from_black_alpha(235));
+            painter.text(position, Align2::LEFT_TOP, text, font, C::WHITE);
+        }
+    }
+}

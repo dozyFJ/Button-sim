@@ -33,6 +33,11 @@ impl Capsule {
 #[derive(Debug, Clone)]
 pub struct Hatch { pub capsule:Capsule, pub inventory_index:usize, pub elapsed:f64 }
 #[derive(Debug, Clone)]
+pub struct ActiveBoost {
+    pub name: String,
+    pub expires_at: f64,
+}
+#[derive(Debug, Clone)]
 pub struct Game {
     pub coins:f64, pub multiplier:u64, pub base_income:f64, pub upgrades:u32,
     pub tab:Tab, pub paused:bool, pub taps:u64, pub total_earned:f64,
@@ -42,13 +47,14 @@ pub struct Game {
     pub grid_size:usize, pub selected_switch:usize, pub switches:Vec<bool>,
     pub interface_open:bool,
     pub dark_mode: bool,
+    pub active_boosts: Vec<ActiveBoost>,
     switch_damage: Vec<u64>,
     pet_xp: std::collections::BTreeMap<usize, u64>,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,switch_damage:vec![0;1024],pet_xp:Default::default(),
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,active_boosts:Vec::new(),switch_damage:vec![0;1024],pet_xp:Default::default(),
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
