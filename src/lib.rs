@@ -383,7 +383,7 @@ mod layout_tests {
         let rarity = label("Эпический · тир");
         let xp = label("Ур. 1");
         let collection = label("Инвентарь 1/1000");
-        assert!(xp.x > rarity.x && xp.y < collection.y && rarity.y < collection.y);
+        assert!(xp.x > rarity.x && xp.y < collection.y && rarity.y < collection.y, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
     }
     #[test] fn hatch_hides_game_gui_and_centers_the_scene() {
         for elapsed in [1.5,3.1] {

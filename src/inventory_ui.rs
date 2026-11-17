@@ -69,9 +69,10 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
         });
     });
 
-    ui.allocate_ui_at_rect(right, |ui| {
-        ui.set_clip_rect(ui.clip_rect().intersect(right));
-        ui.set_width(right.width());
+    let boosts = Rect::from_min_size(right.min, vec2(right.width(), 36.0));
+    ui.allocate_ui_at_rect(boosts, |ui| {
+        ui.set_clip_rect(ui.clip_rect().intersect(boosts));
+        ui.set_width(boosts.width());
         egui::ScrollArea::horizontal().id_salt("pet_boosts").max_width(right.width()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 for label in [format!("Доход ×{:.1}", pet.bonus()), format!("Урон {}", pet.damage())] {
@@ -80,7 +81,12 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
                 }
             });
         });
-        ui.add_space(4.0);
+    });
+
+    let actions = Rect::from_min_size(right.min + vec2(0.0, 39.0), vec2(right.width(), 39.0));
+    ui.allocate_ui_at_rect(actions, |ui| {
+        ui.set_clip_rect(ui.clip_rect().intersect(actions));
+        ui.set_width(actions.width());
         ui.add_enabled_ui(!game.paused && state.pending.is_none(), |ui| {
             egui::ScrollArea::horizontal().id_salt("pet_actions").max_width(right.width()).show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -103,11 +109,17 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
                 });
             });
         });
-        ui.add_space(6.0);
-        let xp = game.pet_xp(index);
-        ui.add(egui::ProgressBar::new((xp % 100) as f32 / 100.0).desired_width(right.width())
-            .text(format!("Ур. {} · {} / 100 XP", xp / 100 + 1, xp % 100)));
     });
+    let track = Rect::from_min_size(right.min + vec2(0.0, 84.0), vec2(right.width(), 24.0));
+    let xp = game.pet_xp(index);
+    let painter = ui.painter().with_clip_rect(right);
+    let dark = ui.visuals().dark_mode;
+    painter.rect_filled(track, 6.0, crate::theme_color(dark, [215,220,199], [59,55,96]));
+    let fill = Rect::from_min_size(track.min, vec2(track.width() * (xp % 100) as f32 / 100.0, track.height()));
+    if fill.width() > 0.0 { painter.rect_filled(fill, 6.0, ui.visuals().selection.bg_fill); }
+    painter.text(track.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER,
+        format!("Ур. {} · {} / 100 XP", xp / 100 + 1, xp % 100),
+        egui::FontId::proportional(12.0), ui.visuals().text_color());
 }
 
 fn filters(ui: &mut egui::Ui, game: &Game, state: &mut GuiState) {
