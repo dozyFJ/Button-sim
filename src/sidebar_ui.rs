@@ -18,7 +18,7 @@ fn tile(ui: &mut egui::Ui, width: f32, label: &str, icon: usize, active: bool) -
     let (rect, response) = ui.allocate_exact_size(vec2(width, TILE), Sense::click());
     let painter = ui.painter();
     if dark {
-        let tint = if active { C::from_rgb(156,70,21) } else if response.hovered() { C::from_rgb(42,74,130) } else { C::from_rgb(28,49,91) };
+        let tint = if active { C::from_rgb(75,111,29) } else if response.hovered() { C::from_rgb(42,74,130) } else { C::from_rgb(28,49,91) };
         crate::paint_dark_glass(painter, rect, 9.0, tint);
     } else if !active {
         let fill = if response.hovered() { C::from_rgb(231,240,246) } else { C::from_rgb(241,245,248) };
@@ -190,7 +190,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         }
         let filled = Rect::from_min_size(track.min, vec2(track.width() * game.level_progress(), track.height()));
         if filled.width() > 0.0 {
-            painter.rect_filled(filled, 8.0, crate::theme_color(dark, [27,99,137], [170,78,25]));
+            painter.rect_filled(filled, 8.0, crate::theme_color(dark, [27,99,137], [92,132,33]));
         }
         let shine = Rect::from_min_size(track.min + vec2(2.0, 2.0), vec2((track.width() - 4.0).max(0.0), track.height() * 0.43));
         painter.rect_filled(shine, 7.0, C::from_white_alpha(37));

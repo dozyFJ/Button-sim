@@ -141,7 +141,7 @@ fn apply_theme(ctx: &egui::Context, dark: bool) {
     let mut visuals = if dark { egui::Visuals::dark() } else { egui::Visuals::light() };
     visuals.panel_fill = theme_color(dark, [246,238,211], [24,23,42]);
     visuals.window_fill = theme_color(dark, [250,244,222], [32,29,53]);
-    visuals.selection.bg_fill = theme_color(dark, [93,161,71], [159,75,22]);
+    visuals.selection.bg_fill = theme_color(dark, [93,161,71], [76,112,27]);
     visuals.override_text_color = Some(theme_color(dark, [39,54,41], [235,244,255]));
     if dark {
         use egui::{Color32 as C, Stroke};
@@ -152,7 +152,7 @@ fn apply_theme(ctx: &egui::Context, dark: bool) {
         visuals.widgets.inactive.weak_bg_fill = C::from_rgb(31,53,95);
         visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, C::from_rgb(88,111,159));
         visuals.widgets.hovered.weak_bg_fill = C::from_rgb(43,73,134);
-        visuals.widgets.active.weak_bg_fill = C::from_rgb(161,74,23);
+        visuals.widgets.active.weak_bg_fill = C::from_rgb(80,118,29);
     }
     ctx.set_visuals(visuals);
 }

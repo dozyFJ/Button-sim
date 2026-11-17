@@ -190,7 +190,7 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
                 let (rect,response)=ui.allocate_exact_size(vec2(56.0,30.0),Sense::click());
                 let t=ctx.animate_bool(response.id,game.auto_attack);
                 if ui.visuals().dark_mode {
-                    let tint = if game.auto_attack { C::from_rgb(153,70,23) } else { C::from_rgb(44,56,96) };
+                    let tint = if game.auto_attack { C::from_rgb(74,108,24) } else { C::from_rgb(44,56,96) };
                     crate::paint_dark_glass(ui.painter(), rect, 15.0, tint);
                 } else {
                     ui.painter().rect_filled(rect,15.0,if game.auto_attack {GREEN} else {C::from_rgb(155,165,151)});

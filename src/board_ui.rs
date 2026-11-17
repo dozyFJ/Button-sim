@@ -76,13 +76,13 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 let fill = if !unlocked {
                     crate::theme_color(dark, [157,160,163], [53,55,63])
                 } else if active {
-                    crate::theme_color(dark, [140,191,105], [133,64,22])
+                    crate::theme_color(dark, [140,191,105], [63,92,30])
                 } else {
                     crate::theme_color(dark, [231,190,119], [36,63,115])
                 };
                 let border = if !unlocked {
                     crate::theme_color(dark, [105,108,112], [112,115,123])
-                } else if selected { C::from_rgb(230,148,36) } else {
+                } else if selected { crate::theme_color(dark, [230,148,36], [172,225,78]) } else {
                     crate::theme_color(dark, [104,119,76], [104,138,199])
                 };
                 p.add(Shape::convex_polygon(face.to_vec(), fill, Stroke::new(if selected { 3.0 } else { 1.0 }, border)));
