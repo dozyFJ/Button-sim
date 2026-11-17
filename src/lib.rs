@@ -246,7 +246,7 @@ impl ApplicationHandler for App {
                 let now = Instant::now();
                 let dt = now.duration_since(self.last_tick.replace(now).unwrap_or(now)).as_secs_f64().min(0.25);
                 self.game.tick(dt);
-                let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch, self.game.dark_mode);
+                let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch, self.game.dark_mode, self.game.multiplier);
                 let input = g.state.take_egui_input(&g.gpu.window);
                 let mut update_requested = false;
                 let update_error = self.update_error.clone();
@@ -255,7 +255,7 @@ impl ApplicationHandler for App {
                     save_game(&self.game, self.save_path.as_deref());
                     self.update_error = updates::open().err();
                 }
-                let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch, self.game.dark_mode);
+                let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch, self.game.dark_mode, self.game.multiplier);
                 if before != after || self.last_save.map(|t| now.duration_since(t).as_secs() >= 5).unwrap_or(true) {
                     save_game(&self.game, self.save_path.as_deref());
                     self.last_save = Some(now);

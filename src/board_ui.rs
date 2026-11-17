@@ -104,11 +104,21 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 } else {
                     let max_hp = Game::switch_max_hp(index);
                     let hp = game.switch_hp(index);
+                    let recovery = game.switch_recovery_left(index);
+                    let seconds = recovery.ceil() as u64;
+                    let (status, reward, progress) = if seconds > 0 {
+                        (format!("ХИЛ {}:{:02}", seconds / 60, seconds % 60), "ПОДОЖДИ".into(),
+                            1.0 - (recovery / Game::switch_recovery_time(index)) as f32)
+                    } else if hp == 0 {
+                        ("ГОТОВО".into(), format!("КУПИ {}", amount(Game::switch_price(index))), 0.0)
+                    } else {
+                        (format!("{hp}/{max_hp}"), "НАГР +1".into(), hp as f32 / max_hp as f32)
+                    };
                     crate::surface_gui::paint(p, face, &[
-                        format!("#{}", index + 1), format!("{hp}/{max_hp}"), "НАГР +1".into(),
+                        format!("#{}", index + 1), status, reward,
                         format!("УР {}", Game::switch_required_level(index)),
                         format!("РБ {} · {}", Game::switch_required_rebirths(index), Game::switch_rarity(index)),
-                    ], ink, unlocked.then_some(hp as f32 / max_hp as f32), !unlocked);
+                    ], ink, unlocked.then_some(progress), !unlocked);
                     if unlocked && response.clicked() { game.tap_switch(index); }
                 }
                 if !unlocked {
@@ -118,7 +128,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                     p.rect_stroke(Rect::from_center_size(center - vec2(0.0, 3.0), vec2(7.0, 9.0)), 3.0, Stroke::new(1.5, lock));
                     p.rect_filled(Rect::from_center_size(center + vec2(0.0, 2.5), vec2(11.0, 8.0)), 2.0, lock);
                 }
-                if unlocked && !rebirths && selected && !game.equipped_pets.is_empty() {
+                if unlocked && !rebirths && selected && game.switch_hp(index) > 0 && !game.equipped_pets.is_empty() {
                     crate::pet_ui::attack_scene(p,Rect::from_center_size(r.center(),r.size()),r.center(),side*0.62,game);
                 }
             }
