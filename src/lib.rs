@@ -3,6 +3,7 @@ pub mod game;
 mod pet_render;
 mod pet_ui;
 mod updates;
+mod board_ui;
 mod save_format;
 
 use std::{sync::Arc, time::Instant};
@@ -221,40 +222,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game, update_error: Option<&str>) ->
                     ui.vertical_centered(|ui| {
                         ui.add_space(18.0);
                         match game.tab {
-                            game::Tab::Home => {
-                                ui.label(T::new("BUTTON SIM").size(12.0).color(muted).strong());
-                                ui.add_space(10.0);
-                                ui.label(T::new(format!("Множитель ×{}", game.multiplier)).size(27.0).strong().color(gold));
-                                ui.label(T::new("Каждое нажатие увеличивает доход").size(13.0).color(muted));
-                                ui.add_space(26.0);
-                                let size = (ui.available_width() * 0.64).min(220.0);
-                                let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), size + 142.0), Sense::click());
-                                let center = rect.center() - vec2(0.0, 10.0);
-                                let pet_impact = (0..game.equipped_pets.len()).any(|slot| game.pet_is_striking(slot));
-                                let pressed = response.is_pointer_button_down_on() || pet_impact;
-                                let top = center + vec2(0.0, if pressed { 10.0 } else { 0.0 });
-                                let p = ui.painter();
-                                for spread in [22.0, 15.0, 8.0] {
-                                    p.circle_stroke(center + vec2(0.0, 9.0), size * 0.48 + spread, Stroke::new(5.0, C::from_rgba_unmultiplied(52, 226, 255, 15)));
-                                }
-                                p.circle_filled(center + vec2(0.0, 22.0), size * 0.49, C::from_rgb(6, 12, 29));
-                                p.circle_filled(center + vec2(0.0, 9.0), size * 0.48, C::from_rgb(33, 56, 93));
-                                p.circle_stroke(center + vec2(0.0, 9.0), size * 0.48, Stroke::new(3.0, gold));
-                                p.circle_filled(center + vec2(0.0, 10.0), size * 0.41, C::from_rgb(76, 25, 107));
-                                p.circle_filled(top, size * 0.41, C::from_rgb(214, 70, 203));
-                                p.circle_stroke(top, size * 0.40, Stroke::new(2.0, C::from_rgb(255, 170, 246)));
-                                p.circle_filled(top - vec2(size * 0.07, size * 0.17), size * 0.25, C::from_rgba_unmultiplied(250, 202, 255, 26));
-                                p.circle_filled(top - vec2(size * 0.1, size * 0.15), size * 0.16, C::from_rgba_unmultiplied(255, 185, 191, 90));
-                                p.text(top, Align2::CENTER_CENTER, "ЖМИ!", FontId::proportional(36.0), C::WHITE);
-                                pet_ui::attack_scene(p, rect, center, size, game);
-                                if response.clicked() && (response.interact_pointer_pos().map(|point| point.distance(center) <= size * 0.48).unwrap_or(false)) { game.tap(); }
-                                ui.add_space(22.0);
-                                ui.label(T::new(format!("Бонус ребёртов ×{}", amount(game.rebirth_bonus()))).color(green));
-                                if !game.equipped_pets.is_empty() {
-                                    ui.label(T::new(format!("Команда {}/3 · доход ×{:.1}", game.equipped_pets.len(), game.pet_bonus())).color(gold));
-                                }
-                                ui.add_space(60.0);
-                            }
+                            game::Tab::Home => { board_ui::show(ui, game); }
                             game::Tab::Capsules => { pet_ui::shop(ui, game); }
                             game::Tab::Upgrades => {
                                 ui.heading("Улучшения");
@@ -358,7 +326,7 @@ impl ApplicationHandler for App {
                 let now = Instant::now();
                 let dt = now.duration_since(self.last_tick.replace(now).unwrap_or(now)).as_secs_f64().min(0.25);
                 self.game.tick(dt);
-                let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths);
+                let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch);
                 let input = g.state.take_egui_input(&g.gpu.window);
                 let mut update_requested = false;
                 let update_error = self.update_error.clone();
@@ -367,7 +335,7 @@ impl ApplicationHandler for App {
                     save_game(&self.game, self.save_path.as_deref());
                     self.update_error = updates::open().err();
                 }
-                let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths);
+                let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths, self.game.grid_size, self.game.selected_switch);
                 if before != after || self.last_save.map(|t| now.duration_since(t).as_secs() >= 5).unwrap_or(true) {
                     save_game(&self.game, self.save_path.as_deref());
                     self.last_save = Some(now);

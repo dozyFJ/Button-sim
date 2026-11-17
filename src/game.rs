@@ -33,17 +33,30 @@ pub struct Game {
     pub played_seconds:f64, pub rebirths:u32,
     pub pets:Vec<PetKind>, pub equipped_pet:Option<usize>, pub hatch:Option<Hatch>, pub pets_open:bool,
     pub equipped_pets:Vec<usize>, pub auto_attack:bool, pub attack_clock:f64, pub auto_hits:u64,
+    pub grid_size:usize, pub selected_switch:usize, pub switches:Vec<bool>,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:8,selected_switch:0,switches:vec![false;1024],
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
     pub fn tap(&mut self) {
-        if self.paused||self.hatch.is_some()||self.pets_open { return; }
+        if self.paused||self.hatch.is_some()||self.pets_open||!self.switch_unlocked(self.selected_switch) { return; }
         self.multiplier=self.multiplier.saturating_add(1); self.taps=self.taps.saturating_add(1);
+        self.switches[self.selected_switch]=!self.switches[self.selected_switch];
+    }
+    pub fn switch_required_level(index:usize)->u64 { if index<5 {1} else {(index-3) as u64} }
+    pub fn switch_unlocked(&self,index:usize)->bool { index<self.grid_size*self.grid_size&&index<self.switches.len()&&self.level()>=Self::switch_required_level(index) }
+    pub fn set_grid_size(&mut self,size:usize)->bool {
+        if self.paused||self.hatch.is_some()||![8,32].contains(&size) {return false;}
+        self.grid_size=size;if self.selected_switch>=size*size {self.selected_switch=0;self.attack_clock=0.0;} true
+    }
+    pub fn tap_switch(&mut self,index:usize)->bool {
+        if self.paused||self.pets_open||self.hatch.is_some()||!self.switch_unlocked(index) {return false;}
+        if self.selected_switch!=index {self.selected_switch=index;self.attack_clock=0.0;}
+        self.tap();true
     }
     pub fn tick(&mut self,seconds:f64) {
         if self.paused||!seconds.is_finite() { return; }
@@ -63,6 +76,7 @@ impl Game {
             self.multiplier=self.multiplier.saturating_add(hits);
             self.taps=self.taps.saturating_add(hits);
             self.auto_hits=self.auto_hits.saturating_add(hits);
+            if hits%2==1 { self.switches[self.selected_switch]=!self.switches[self.selected_switch]; }
         }
     }
     pub fn level(&self)->u64 { self.taps/100+1 }
@@ -74,7 +88,7 @@ impl Game {
         1.0+self.equipped_pets.iter().filter_map(|&i|self.pets.get(i)).map(|p|p.bonus()-1.0).sum::<f64>()
     }
     pub fn attack_running(&self)->bool {
-        self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.equipped_pets.is_empty()
+        self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)
     }
     pub fn toggle_auto_attack(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.pets_open||self.equipped_pets.is_empty() { return false; }
@@ -131,11 +145,12 @@ impl Game {
     }
     pub fn save_text(&self)->String {
         let pets=self.pets.iter().map(|p|(*p as u8).to_string()).collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n",
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
             pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
             self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
-            self.auto_attack,self.auto_hits)
+            self.auto_attack,self.auto_hits,self.grid_size,self.selected_switch,
+            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>())
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -164,6 +179,14 @@ impl Game {
         g.equipped_pet=g.equipped_pets.first().copied();
         g.auto_attack=lines.next().map(str::parse).transpose().ok()?.unwrap_or(false)&&!g.equipped_pets.is_empty();
         g.auto_hits=lines.next().map(str::parse).transpose().ok()?.unwrap_or(0);
+        if let Some(board)=lines.next() {
+            let mut fields=board.split_whitespace();
+            g.grid_size=fields.next()?.parse().ok()?;g.selected_switch=fields.next()?.parse().ok()?;
+            if ![8,32].contains(&g.grid_size)||g.selected_switch>=g.grid_size*g.grid_size {return None;}
+            let states=lines.next()?;if states.len()!=1024||!states.bytes().all(|b|b==b'0'||b==b'1') {return None;}
+            g.switches=states.bytes().map(|b|b==b'1').collect();
+            if !g.switch_unlocked(g.selected_switch) {g.selected_switch=0;}
+        }
         Some(g)
     }
 }
@@ -240,4 +263,19 @@ mod tests {
         assert_eq!(restored.auto_hits,g.auto_hits);assert_eq!(restored.attack_clock,0.0);
     }
 
+
+    #[test] fn starter_switches_and_level_locks() {
+        let mut g=Game::default();for i in 0..5 {assert!(g.switch_unlocked(i));}
+        assert!(!g.tap_switch(5));assert_eq!(g.taps,0);
+        for _ in 0..100 {g.tap();}assert!(g.tap_switch(5));assert_eq!(g.selected_switch,5);
+        assert!(!g.tap_switch(1024));assert_eq!(g.taps,101);
+    }
+    #[test] fn board_state_saves_and_autoattacks_selected_tile() {
+        let mut g=Game::default();g.tap_switch(3);assert!(g.switches[3]);
+        g.pets.push(PetKind::Cat);g.equip_pet(0);g.toggle_auto_attack();g.tick(1.8);
+        assert!(!g.switches[3]);assert_eq!(g.auto_hits,1);assert!(!g.switches[0]);
+        g.set_grid_size(32);let restored=Game::from_save(&g.save_text()).unwrap();
+        assert_eq!(restored.grid_size,32);assert_eq!(restored.selected_switch,3);assert_eq!(restored.switches,g.switches);
+        assert!(!g.set_grid_size(16));
+    }
 }

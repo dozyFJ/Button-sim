@@ -30,7 +30,7 @@ Initial manual signing can use the same permanent key, followed by tools/build_o
 
 ## Validation
 
-CI runs 12 game tests, producer tests and adversarial JVM verification tests, then compiles the optimized ARM64 release.
+CI runs 14 game tests, producer tests and adversarial JVM verification tests, then compiles the optimized ARM64 release.
 Checks cover ABI exports, stripped debug data, 16 KB page alignment, required shell classes, APK signature/alignment, and signature/extraction of the actual OTA archive.
 The game-ota release contains game-ota.json, game-ota.sig, game-runtime.zip. The signed manifest is published last. Clients reject partial/inconsistent releases safely and can retry.
 First installation, native restart, activation and rollback still require a real ARM64 Android phone test.
