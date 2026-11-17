@@ -451,7 +451,7 @@ mod layout_tests {
         assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Удалить")));
     }
     #[test]
-    fn portrait_pet_sheet_keeps_preview_and_progress_above_inventory() {
+    fn portrait_pet_sheet_keeps_details_left_of_inventory() {
         let ctx = egui::Context::default();
         let mut game = game::Game::default();
         game.pets.push(game::PetKind::Fox);
@@ -467,7 +467,7 @@ mod layout_tests {
         let rarity = label("Эпический · тир");
         let xp = label("Ур. 1");
         let collection = label("Инвентарь 1/1000");
-        assert!(xp.x > rarity.x && xp.y < collection.y && rarity.y < collection.y, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
+        assert!(xp.x < collection.x && rarity.x < collection.x && xp.y > rarity.y, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
     }
     #[test]
     fn swipes_follow_the_three_field_pages_in_order() {

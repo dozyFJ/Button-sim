@@ -18,110 +18,100 @@ pub fn draw(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut G
         if state.selected_pet.is_none_or(|i| i >= game.pets.len()) {
             state.selected_pet = (!game.pets.is_empty()).then_some(0);
         }
-        if let Some(index) = state.selected_pet {
-            details(ui, game, state, index);
-            ui.separator();
-        }
-        filters(ui, game, state);
-        if state.pet_multi_delete {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(format!("Выбрано: {}", state.pet_marked.len()));
-                if ui.button("Отмена").clicked() {
-                    state.pet_multi_delete = false;
-                    state.pet_marked.clear();
-                }
-                if ui.add_enabled(!state.pet_marked.is_empty() && state.pending.is_none() && !game.paused,
-                    egui::Button::new("Удалить выбранных")).clicked()
-                {
-                    state.pending = Some(PetAction::DeleteMany);
+        let body = ui.available_rect_before_wrap();
+        let left_width = (body.width() * 0.36).min(228.0);
+        let left = Rect::from_min_size(body.min, vec2(left_width, body.height()));
+        let right = Rect::from_min_max(pos2(left.right() + 10.0, body.top()), body.max);
+        let line = left.right() + 5.0;
+        ui.painter().line_segment([pos2(line, body.top()), pos2(line, body.bottom())],
+            ui.visuals().widgets.noninteractive.bg_stroke);
+
+        ui.allocate_ui_at_rect(left, |ui| {
+            ui.set_clip_rect(ui.clip_rect().intersect(left));
+            ui.set_width(left.width());
+            egui::ScrollArea::vertical().id_salt("pet_detail_scroll").max_height(left.height()).show(ui, |ui| {
+                if let Some(index) = state.selected_pet {
+                    details(ui, game, state, index);
                 }
             });
-        }
-        grid(ui, game, state);
+        });
+
+        ui.allocate_ui_at_rect(right, |ui| {
+            ui.set_clip_rect(ui.clip_rect().intersect(right));
+            ui.set_width(right.width());
+            filters(ui, game, state);
+            if state.pet_multi_delete {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(format!("Выбрано: {}", state.pet_marked.len()));
+                    if ui.button("Отмена").clicked() {
+                        state.pet_multi_delete = false;
+                        state.pet_marked.clear();
+                    }
+                    if ui.add_enabled(!state.pet_marked.is_empty() && state.pending.is_none() && !game.paused,
+                        egui::Button::new("Удалить выбранных")).clicked()
+                    {
+                        state.pending = Some(PetAction::DeleteMany);
+                    }
+                });
+            }
+            grid(ui, game, state);
+        });
     });
     confirm(ctx, workspace, game, state);
 }
 
 fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usize) {
     let pet = game.pets[index];
-    let available = ui.available_rect_before_wrap();
-    let width = available.width();
-    let height = (available.height() * 0.42).clamp(125.0, 170.0).min(available.height().max(58.0));
-    let card = Rect::from_min_size(available.min, vec2(width, height));
-    let split = card.left() + (width * 0.37).min(240.0);
-    let left = Rect::from_min_max(card.min, pos2(split, card.bottom()));
-    let right = Rect::from_min_max(pos2(split + 9.0, card.top()), card.max);
-
-    ui.allocate_ui_at_rect(left, |ui| {
-        ui.set_clip_rect(ui.clip_rect().intersect(left));
-        ui.vertical_centered(|ui| {
-            ui.label(T::new(pet.name()).size(17.0).strong());
-            let (viewport, _) = ui.allocate_exact_size(vec2((left.width() - 4.0).max(0.0), height - 53.0), Sense::hover());
-            let dark = ui.visuals().dark_mode;
-            let painter = ui.painter().with_clip_rect(viewport);
-            painter.rect_filled(viewport, 0.0, crate::theme_color(dark, [195,220,223], [38,49,79]));
-            let floor = Rect::from_min_max(pos2(viewport.left(), viewport.top() + viewport.height() * 0.64), viewport.max);
-            painter.rect_filled(floor, 0.0, crate::theme_color(dark, [154,177,123], [52,63,94]));
-            painter.rect_filled(Rect::from_center_size(viewport.center() + vec2(0.0, viewport.height() * 0.29),
-                vec2(viewport.width() * 0.48, 9.0)), 5.0, C::from_black_alpha(65));
-            pet_render::pet(&painter, viewport.shrink(5.0), pet, game.played_seconds as f32);
-            painter.rect_stroke(viewport, 0.0, Stroke::new(1.0, crate::theme_color(dark, [103,122,87], [133,117,198])));
-            ui.label(T::new(format!("{} · тир {}", pet.rarity(), pet.evolution_tier())).size(11.0));
-        });
-    });
-
-    let boosts = Rect::from_min_size(right.min, vec2(right.width(), 36.0));
-    ui.allocate_ui_at_rect(boosts, |ui| {
-        ui.set_clip_rect(ui.clip_rect().intersect(boosts));
-        ui.set_width(boosts.width());
-        egui::ScrollArea::horizontal().id_salt("pet_boosts").max_width(right.width()).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                for label in [format!("Доход ×{:.1}", pet.bonus()), format!("Урон {}", pet.damage())] {
-                    egui::Frame::none().fill(ui.visuals().selection.bg_fill).rounding(6.0)
-                        .inner_margin(egui::Margin::symmetric(7.0, 4.0)).show(ui, |ui| { ui.label(T::new(label).strong()); });
-                }
-            });
-        });
-    });
-
-    let actions = Rect::from_min_size(right.min + vec2(0.0, 39.0), vec2(right.width(), 39.0));
-    ui.allocate_ui_at_rect(actions, |ui| {
-        ui.set_clip_rect(ui.clip_rect().intersect(actions));
-        ui.set_width(actions.width());
-        ui.add_enabled_ui(!game.paused && state.pending.is_none(), |ui| {
-            egui::ScrollArea::horizontal().id_salt("pet_actions").max_width(right.width()).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let equipped = game.equipped_pets.contains(&index);
-                    if ui.button(if equipped { "Снять" } else { "Надеть" }).clicked() {
-                        if equipped { game.unequip_pet(index); } else { game.equip_pet(index); }
-                    }
-                    if ui.add_enabled(!state.pet_multi_delete, egui::Button::new("Удалить")).clicked() { state.pending = Some(PetAction::Delete(index)); }
-                    if ui.add_enabled(!state.pet_multi_delete && game.craft_materials(index).is_some(), egui::Button::new("Крафт"))
-                        .on_hover_text("Нужны три одинаковых питомца").clicked()
-                    { state.pending = Some(PetAction::Craft(index)); }
-                    if ui.button("Надеть лучшего").clicked() { game.equip_best_pet(); }
-                    if ui.add_enabled(!game.equipped_pets.is_empty(), egui::Button::new("Снять всех")).clicked() {
-                        game.unequip_all_pets();
-                    }
-                    if ui.selectable_label(state.pet_multi_delete, "Мультиудаление").clicked() {
-                        state.pet_multi_delete = !state.pet_multi_delete;
-                        state.pet_marked.clear();
-                    }
-                });
-            });
-        });
-    });
-    let track = Rect::from_min_size(right.min + vec2(0.0, 84.0), vec2(right.width(), 24.0));
-    let xp = game.pet_xp(index);
-    let painter = ui.painter().with_clip_rect(right);
     let dark = ui.visuals().dark_mode;
-    painter.rect_filled(track, 6.0, crate::theme_color(dark, [215,220,199], [36,60,105]));
-    let fill = Rect::from_min_size(track.min, vec2(track.width() * (xp % 100) as f32 / 100.0, track.height()));
-    if fill.width() > 0.0 { painter.rect_filled(fill, 6.0, ui.visuals().selection.bg_fill); }
-    painter.text(track.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER,
-        format!("Ур. {} · {} / 100 XP", xp / 100 + 1, xp % 100),
-        egui::FontId::proportional(12.0), ui.visuals().text_color());
-    ui.allocate_rect(card, Sense::hover());
+    ui.vertical_centered(|ui| {
+        ui.label(T::new(pet.name()).size(17.0).strong());
+        let width = (ui.available_width() - 4.0).max(0.0);
+        let (viewport, _) = ui.allocate_exact_size(vec2(width, width.clamp(65.0, 135.0)), Sense::hover());
+        let painter = ui.painter().with_clip_rect(viewport);
+        painter.rect_filled(viewport, 0.0, crate::theme_color(dark, [195,220,223], [38,49,79]));
+        let floor = Rect::from_min_max(pos2(viewport.left(), viewport.top() + viewport.height() * 0.64), viewport.max);
+        painter.rect_filled(floor, 0.0, crate::theme_color(dark, [154,177,123], [52,63,94]));
+        painter.rect_filled(Rect::from_center_size(viewport.center() + vec2(0.0, viewport.height() * 0.29),
+            vec2(viewport.width() * 0.48, 9.0)), 5.0, C::from_black_alpha(65));
+        pet_render::pet(&painter, viewport.shrink(5.0), pet, game.played_seconds as f32);
+        painter.rect_stroke(viewport, 0.0, Stroke::new(1.0_f32, crate::theme_color(dark, [103,122,87], [133,117,198])));
+        ui.label(T::new(format!("{} · тир {}", pet.rarity(), pet.evolution_tier())).size(11.0));
+        for label in [format!("Доход ×{:.1}", pet.bonus()), format!("Урон {}", pet.damage())] {
+            egui::Frame::none().fill(ui.visuals().selection.bg_fill).rounding(6.0)
+                .inner_margin(egui::Margin::symmetric(7.0, 4.0)).show(ui, |ui| {
+                    ui.set_width((ui.available_width() - 2.0).max(0.0));
+                    ui.vertical_centered(|ui| { ui.label(T::new(label).strong()); });
+                });
+        }
+        ui.add_space(4.0);
+        let xp = game.pet_xp(index);
+        ui.add(egui::ProgressBar::new((xp % 100) as f32 / 100.0)
+            .desired_width(ui.available_width()).text(format!("Ур. {} · {} / 100 XP", xp / 100 + 1, xp % 100)));
+        ui.add_space(4.0);
+
+        ui.add_enabled_ui(!game.paused && state.pending.is_none(), |ui| {
+            let button = |label| egui::Button::new(T::new(label).size(11.0)).min_size(vec2(width, 27.0));
+            let equipped = game.equipped_pets.contains(&index);
+            if ui.add(button(if equipped { "Снять" } else { "Надеть" })).clicked() {
+                if equipped { game.unequip_pet(index); } else { game.equip_pet(index); }
+            }
+            if ui.add_enabled(!state.pet_multi_delete, button("Удалить")).clicked() {
+                state.pending = Some(PetAction::Delete(index));
+            }
+            if ui.add_enabled(!state.pet_multi_delete && game.craft_materials(index).is_some(), button("Крафт"))
+                .on_hover_text("Нужны три одинаковых питомца").clicked()
+            { state.pending = Some(PetAction::Craft(index)); }
+            if ui.add(button("Надеть лучшего")).clicked() { game.equip_best_pet(); }
+            if ui.add_enabled(!game.equipped_pets.is_empty(), button("Снять всех")).clicked() {
+                game.unequip_all_pets();
+            }
+            let label = if state.pet_multi_delete { "Отменить выбор" } else { "Мультиудаление" };
+            if ui.add(button(label).selected(state.pet_multi_delete)).clicked() {
+                state.pet_multi_delete = !state.pet_multi_delete;
+                state.pet_marked.clear();
+            }
+        });
+    });
 }
 
 fn filters(ui: &mut egui::Ui, game: &Game, state: &mut GuiState) {
