@@ -36,7 +36,7 @@ jobs:
           grep -F "certificate SHA-256 digest: f57b73cec072c6ca688126dfb34c8eb42f2780f357d8146b01fdce7feb2b0477" /tmp/apk-signature.txt
           "$TOOLS/zipalign" -c -P 16 4 build/button-sim-release.apk
           python3 tools/check_shell_apk.py game build/button-sim-release.apk
-          curl -fsSL --retry 3 https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar -o /tmp/json.jar
+          curl -fsSL --retry 3 https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar -o /tmp/json.jar || curl -fsSL --retry 3 https://maven-central.storage-download.googleapis.com/maven2/org/json/json/20240303/json-20240303.jar -o /tmp/json.jar
           echo "3cf6cd6892e32e2b4c1c39e0f52f5248a2f5b37646fdfbb79a66b46b618414ed  /tmp/json.jar" | sha256sum -c -
           javac --release 17 -cp /tmp/json.jar -d /tmp/ota-classes android-shared/src/main/java/com/dozyfj/buttonsim/ota/BundleVerifier.java tools/OtaBundleSmokeTest.java
           java -ea -cp /tmp/ota-classes:/tmp/json.jar OtaBundleSmokeTest game build/game-ota build/release-cert.der
