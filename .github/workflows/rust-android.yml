@@ -29,6 +29,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev pkg-config
           cargo install cargo-apk --locked
+      - name: Test game economy
+        run: |
+          rustc --edition=2024 --test src/game.rs -o /tmp/button-sim-game-tests
+          /tmp/button-sim-game-tests
       - name: Build Android APK
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
