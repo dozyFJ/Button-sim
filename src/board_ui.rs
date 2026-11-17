@@ -1,9 +1,37 @@
 //! One vertically scrolling field; metadata is part of the animated switch face.
-use egui::{Color32 as C,Rect,Stroke,Sense,Shape,vec2};
+use egui::{Color32 as C,Rect,Stroke,Sense,Shape,pos2,vec2};
 use crate::game::Game;
+fn draw_floor(ui: &egui::Ui, view: Rect, dark: bool) {
+    let painter = ui.painter().with_clip_rect(view);
+    let base = crate::theme_color(dark, [119,159,85], [24,26,46]);
+    let grid = crate::theme_color(dark, [102,140,75], [33,36,65]);
+    let stud_top = crate::theme_color(dark, [143,181,108], [53,55,94]);
+    let stud_side = crate::theme_color(dark, [92,128,64], [16,18,37]);
+    painter.rect_filled(view, 0.0, base);
+
+    let tile = 22.0;
+    let columns = (view.width() / tile).ceil() as usize;
+    let rows = (view.height() / tile).ceil() as usize;
+    for column in 1..columns {
+        let x = view.left() + column as f32 * tile;
+        painter.line_segment([pos2(x, view.top()), pos2(x, view.bottom())], Stroke::new(1.0, grid));
+    }
+    for row in 0..rows {
+        let y = view.top() + row as f32 * tile;
+        painter.line_segment([pos2(view.left(), y), pos2(view.right(), y)], Stroke::new(1.0, grid));
+        for column in 0..columns {
+            let center = pos2(view.left() + (column as f32 + 0.5) * tile, y + tile * 0.5);
+            let stud = Rect::from_center_size(center, vec2(7.0, 5.0));
+            painter.rect_filled(stud.translate(vec2(0.0, 2.0)), 1.0, stud_side);
+            painter.rect_filled(stud, 1.0, stud_top);
+        }
+    }
+}
+
 pub fn show(ui:&mut egui::Ui,game:&mut Game) {
     let dark = game.dark_mode;
-    let view=ui.available_rect_before_wrap();ui.painter().rect_filled(view,0.0,crate::theme_color(dark, [121,166,82], [15,19,40]));
+    let view = ui.available_rect_before_wrap();
+    draw_floor(ui, view, dark);
     let columns=(view.width()/155.0).floor().clamp(2.0,6.0) as usize;
     let gap=10.0;let side=(view.width()-16.0-(columns-1) as f32*gap)/columns as f32;
     let height=side*0.86;let count=game.switches.len();let rows=count.div_ceil(columns);
