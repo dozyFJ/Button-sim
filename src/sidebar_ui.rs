@@ -17,14 +17,23 @@ fn tile(ui: &mut egui::Ui, width: f32, label: &str, icon: usize, active: bool) -
     let color = if active && !dark { C::BLACK } else { ui.visuals().text_color() };
     let (rect, response) = ui.allocate_exact_size(vec2(width, TILE), Sense::click());
     let painter = ui.painter();
-    let fill = if active {
-        crate::theme_color(dark, [93,161,71], [103,63,189])
-    } else if response.hovered() {
-        crate::theme_color(dark, [216,229,192], [64,59,108])
+    if !dark && !active {
+        let fill = if response.hovered() { C::from_rgb(231,240,246) } else { C::from_rgb(241,245,248) };
+        painter.rect_filled(rect, 9.0, fill);
+        let inset = rect.shrink(2.0);
+        let shine = Rect::from_min_max(inset.min, pos2(inset.right(), inset.center().y));
+        painter.rect_filled(shine, egui::Rounding { nw: 7.0, ne: 7.0, sw: 2.0, se: 2.0 }, C::WHITE);
+        painter.rect_stroke(rect, 9.0, egui::Stroke::new(1.0_f32, C::from_rgb(186,199,209)));
     } else {
-        crate::theme_color(dark, [230,233,207], [42,40,75])
-    };
-    painter.rect_filled(rect, 9.0, fill);
+        let fill = if active {
+            crate::theme_color(dark, [93,161,71], [103,63,189])
+        } else if response.hovered() {
+            C::from_rgb(64,59,108)
+        } else {
+            C::from_rgb(42,40,75)
+        };
+        painter.rect_filled(rect, 9.0, fill);
+    }
     let icon_center = rect.center() - vec2(0.0, 8.0);
     if icon < 6 {
         nav_icon(painter, icon_center, icon, color);
@@ -112,8 +121,16 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         let right = Rect::from_min_size(viewport.right_top() + vec2(GAP, 0.0), vec2(ARROW, TILE));
         let max_offset = (NAV_ITEMS - visible) as f32 * (tile_width + GAP);
         let step = (visible.saturating_sub(1).max(1) as f32) * (tile_width + GAP);
-        let left_clicked = ui.put(left, egui::Button::new("‹").sense(if state.sidebar_scroll > 0.0 { Sense::click() } else { Sense::hover() })).clicked();
-        let right_clicked = ui.put(right, egui::Button::new("›").sense(if state.sidebar_scroll < max_offset { Sense::click() } else { Sense::hover() })).clicked();
+        let arrow = |label, enabled| {
+            let button = egui::Button::new(label).sense(if enabled { Sense::click() } else { Sense::hover() });
+            if dark { button } else {
+                button.fill(C::from_rgb(249,251,252))
+                    .stroke(egui::Stroke::new(1.0_f32, C::from_rgb(186,199,209)))
+                    .rounding(7.0)
+            }
+        };
+        let left_clicked = ui.put(left, arrow("‹", state.sidebar_scroll > 0.0)).clicked();
+        let right_clicked = ui.put(right, arrow("›", state.sidebar_scroll < max_offset)).clicked();
         if left_clicked { state.sidebar_scroll = (state.sidebar_scroll - step).max(0.0); }
         if right_clicked { state.sidebar_scroll = (state.sidebar_scroll + step).min(max_offset); }
 
