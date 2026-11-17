@@ -5,8 +5,10 @@ const GREEN: C = C::from_rgb(93, 161, 71);
 
 pub fn draw(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut GuiState) {
     if state.panel != Panel::Pets { return; }
-    egui::Window::new("pets_inventory").title_bar(false).fixed_rect(workspace.shrink(8.0))
-        .resizable(false).collapsible(false).frame(panels_ui::frame(ctx)).show(ctx, |ui| {
+    let sheet = Rect::from_min_max(workspace.left_top() + vec2(0.0, 8.0), workspace.right_bottom());
+    let frame = panels_ui::frame(ctx).rounding(egui::Rounding { nw: 20.0, ne: 20.0, sw: 0.0, se: 0.0 });
+    egui::Window::new("pets_inventory").title_bar(false).fixed_rect(sheet)
+        .resizable(false).collapsible(false).frame(frame).show(ctx, |ui| {
         if panels_ui::heading(ui, "Питомцы") {
             state.close();
             return;
@@ -42,7 +44,7 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
     let pet = game.pets[index];
     let available = ui.available_rect_before_wrap();
     let width = available.width();
-    let height = (available.height() * 0.42).clamp(125.0, 170.0);
+    let height = (available.height() * 0.42).clamp(125.0, 170.0).min(available.height().max(58.0));
     let (card, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
     let split = card.left() + (width * 0.37).min(240.0);
     let left = Rect::from_min_max(card.min, pos2(split, card.bottom()));

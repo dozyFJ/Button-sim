@@ -12,10 +12,10 @@ const GAP: f32 = 5.0;
 const NAV_ITEMS: usize = 7;
 const ARROW: f32 = 24.0;
 
-fn tile(ui: &mut egui::Ui, label: &str, icon: usize, active: bool) -> bool {
+fn tile(ui: &mut egui::Ui, width: f32, label: &str, icon: usize, active: bool) -> bool {
     let dark = ui.visuals().dark_mode;
     let color = if active && !dark { C::BLACK } else { ui.visuals().text_color() };
-    let (rect, response) = ui.allocate_exact_size(vec2(TILE, TILE), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(width, TILE), Sense::click());
     let painter = ui.painter();
     let fill = if active {
         crate::theme_color(dark, [93,161,71], [103,63,189])
@@ -95,15 +95,16 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         ui.painter().rect_filled(strip, 0.0, fill);
 
         let controls = 2.0 * (ARROW + GAP);
-        let fit = ((strip.width() - 16.0 - controls + GAP) / (TILE + GAP)).floor().max(1.0) as usize;
+        let viewport_width = (strip.width() - 16.0 - controls).max(1.0);
+        let fit = ((viewport_width + GAP) / (TILE + GAP)).floor().max(1.0) as usize;
         let visible = fit.min(NAV_ITEMS);
-        let viewport_width = visible as f32 * (TILE + GAP) - GAP;
+        let tile_width = (viewport_width + GAP) / visible as f32 - GAP;
         let center = strip.center();
         let viewport = Rect::from_center_size(center, vec2(viewport_width, TILE));
         let left = Rect::from_min_size(viewport.left_top() - vec2(ARROW + GAP, 0.0), vec2(ARROW, TILE));
         let right = Rect::from_min_size(viewport.right_top() + vec2(GAP, 0.0), vec2(ARROW, TILE));
-        let max_offset = (NAV_ITEMS - visible) as f32 * (TILE + GAP);
-        let step = (visible.saturating_sub(1).max(1) as f32) * (TILE + GAP);
+        let max_offset = (NAV_ITEMS - visible) as f32 * (tile_width + GAP);
+        let step = (visible.saturating_sub(1).max(1) as f32) * (tile_width + GAP);
         let left_clicked = ui.put(left, egui::Button::new("‹").sense(if state.sidebar_scroll > 0.0 { Sense::click() } else { Sense::hover() })).clicked();
         let right_clicked = ui.put(right, egui::Button::new("›").sense(if state.sidebar_scroll < max_offset { Sense::click() } else { Sense::hover() })).clicked();
         if left_clicked { state.sidebar_scroll = (state.sidebar_scroll - step).max(0.0); }
@@ -120,13 +121,13 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                     ui.add_enabled_ui(enabled, |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = GAP;
-                            if tile(ui,"Главная",0,game.tab==Tab::Home&&!state.busy()) {state.close();game.tab=Tab::Home;}
-                            if tile(ui,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
-                            if tile(ui,"Апгрейд",2,state.modal==Modal::Upgrades) {state.modal(Modal::Upgrades);}
-                            if tile(ui,"Питомцы",5,state.panel==Panel::Pets) {if state.panel==Panel::Pets {state.close();} else {state.pets();}}
-                            if tile(ui,"Ребёрты",4,game.tab==Tab::Rebirths&&!state.busy()) {state.close();game.tab=Tab::Rebirths;}
-                            if tile(ui,"Настройки",6,state.modal==Modal::Settings) {state.modal(Modal::Settings);}
-                            if tile(ui,"Магазин",7,state.modal==Modal::Shop) {state.modal(Modal::Shop);}
+                            if tile(ui,tile_width,"Главная",0,game.tab==Tab::Home&&!state.busy()) {state.close();game.tab=Tab::Home;}
+                            if tile(ui,tile_width,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
+                            if tile(ui,tile_width,"Апгрейд",2,state.modal==Modal::Upgrades) {state.modal(Modal::Upgrades);}
+                            if tile(ui,tile_width,"Питомцы",5,state.panel==Panel::Pets) {if state.panel==Panel::Pets {state.close();} else {state.pets();}}
+                            if tile(ui,tile_width,"Ребёрты",4,game.tab==Tab::Rebirths&&!state.busy()) {state.close();game.tab=Tab::Rebirths;}
+                            if tile(ui,tile_width,"Настройки",6,state.modal==Modal::Settings) {state.modal(Modal::Settings);}
+                            if tile(ui,tile_width,"Магазин",7,state.modal==Modal::Shop) {state.modal(Modal::Shop);}
                         });
                     });
                 });
