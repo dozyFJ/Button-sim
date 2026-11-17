@@ -53,7 +53,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             if profile.clicked() {
                 if state.panel == Panel::Profile { state.close(); } else { state.profile(false); }
             }
-            let currency_width = (ui.available_width() - 38.0 - 36.0 - 2.0 * ui.spacing().item_spacing.x).max(0.0);
+            let currency_width = (ui.available_width() - 38.0 - ui.spacing().item_spacing.x).max(0.0);
             let (balance, _) = ui.allocate_exact_size(vec2(currency_width, 34.0), Sense::hover());
             ui.painter().with_clip_rect(balance).text(
                 balance.center(), Align2::CENTER_CENTER, format!("$ {}", amount(game.coins)),
@@ -74,10 +74,6 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                 }
             }
             if pause.clicked() { game.paused = !game.paused; }
-            let stats = ui.add_enabled(enabled, egui::Button::new("").min_size(vec2(36.0, 26.0)))
-                .on_hover_text("Статистика");
-            nav_icon(ui.painter(), stats.rect.center(), 3, ui.style().interact(&stats).fg_stroke.color);
-            if stats.clicked() { state.profile(true); }
         });
     });
     egui::TopBottomPanel::bottom("portrait_dock").exact_height(DOCK).resizable(false)
