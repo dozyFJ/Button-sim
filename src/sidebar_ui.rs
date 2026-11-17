@@ -57,10 +57,7 @@ pub fn draw(ctx:&egui::Context,game:&mut Game,state:&mut GuiState) {
                         if square(ui,"Статистика",3,state.panel==Panel::Profile&&state.profile_stats) {state.profile(true);}
                         if square(ui,"Ребёрты",4,state.modal==Modal::Rebirths) {state.modal(Modal::Rebirths);}
                         if square(ui,"Капсулы",1,game.tab==Tab::Capsules&&!state.busy()) {state.close();game.tab=Tab::Capsules;}
-                        if square(ui,if game.auto_attack {"Автоатака ВКЛ"} else {"Автоатака"},6,game.auto_attack) {
-                            state.close();game.pets_open=false;game.interface_open=false;
-                            if game.equipped_pets.is_empty() {state.pets();} else {game.toggle_auto_attack();}
-                        }
+
                     });
                 });
                 ui.vertical_centered(|ui| {if square(ui,if game.paused {"Продолжить"} else {"Пауза"},7,game.paused) {game.paused=!game.paused;}});

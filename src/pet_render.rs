@@ -51,7 +51,9 @@ fn draw(p:&Painter,rect:Rect,faces:Vec<Face>,yaw:f32,scale:f32,outline:bool) {
         let light=0.58+0.42*((-normal[0]*0.4+normal[1]*0.7+normal[2]*0.6)/len).abs();
         let color=Color32::from_rgb((c[0] as f32*light) as u8,(c[1] as f32*light) as u8,(c[2] as f32*light) as u8);
         let points=v.map(project);
-        p.add(Shape::convex_polygon(points.to_vec(),color,Stroke::NONE));
+        let mut mesh=egui::Mesh::default();
+        for point in points {mesh.colored_vertex(point,color);}
+        mesh.add_triangle(0,1,2);p.add(Shape::mesh(mesh));
         if outline {
             for edge in 0..3 { if edges[edge] {
                 p.line_segment([points[edge],points[(edge+1)%3]],Stroke::new(0.8,Color32::from_rgba_unmultiplied(42,49,37,110)));
@@ -84,7 +86,7 @@ pub fn pet(p:&Painter,rect:Rect,kind:PetKind,time:f32) {
         }
     }
     let bob=(time*2.2).sin()*rect.height()*0.025;
-    draw(p,rect.translate(vec2(0.0,bob)),faces,0.35+(time*0.7).sin()*0.28,rect.width().min(rect.height())*0.32,true);
+    draw(p,rect.translate(vec2(0.0,bob)),faces,0.35+(time*0.7).sin()*0.28,rect.width().min(rect.height())*0.32,false);
 }
 pub fn capsule(p:&Painter,rect:Rect,neon:bool,time:f32,shake:f32) {
     let tint=if neon {[236,166,76]} else {[132,184,94]};
@@ -98,7 +100,4 @@ pub fn capsule(p:&Painter,rect:Rect,neon:bool,time:f32,shake:f32) {
     let mut model=Vec::new();egg(&mut model,[0.0,0.0,0.1],0.72,tint);
     let offset=vec2((time*43.0).sin()*shake,(time*31.0).cos()*shake*0.4);
     draw(p,rect.translate(offset),model,yaw+(time*35.0).sin()*shake*0.015,scale,false);
-    // Matte housing edges, with no neon glow.
-    let rim=rect.shrink2(vec2(rect.width()*0.12,rect.height()*0.12));
-    p.rect_stroke(rim,3.0,Stroke::new(2.0,Color32::from_rgb(89,108,71)));
 }

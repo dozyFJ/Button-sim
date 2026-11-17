@@ -106,6 +106,11 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
         game::Tab::Rebirths=>{state.modal(Modal::Rebirths);game.tab=game::Tab::Home;}
         _=>{}
     }
+    if game.hatch.is_some() {
+        game.interface_open=true;
+        pet_ui::overlays(ctx,game);
+        return false;
+    }
     sidebar_ui::draw(ctx,game,&mut state);
     game.pets_open=state.panel==Panel::Pets;game.interface_open=state.busy();
     let workspace=ctx.available_rect();
@@ -114,13 +119,13 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
         ui.visuals_mut().override_text_color=Some(C::from_rgb(39,54,41));
         ui.add_enabled_ui(!blocked,|ui| {
             if game.tab==game::Tab::Capsules {
-                egui::ScrollArea::vertical().id_salt("capsule_scene").show(ui,|ui| {pet_ui::shop(ui,game);});
+                pet_ui::shop(ui,game);
             } else {board_ui::show(ui,game);}
         });
     });
     panels_ui::draw(ctx,workspace,game,&mut state);
     inventory_ui::draw(ctx,workspace,game,&mut state);
-    pet_ui::overlays(ctx,game);
+    if game.tab==game::Tab::Home&&!blocked {pet_ui::auto_attack(ctx,workspace,game,&mut state);}
     let mut update_requested=false;
     if game.paused {
         let rect=Rect::from_center_size(workspace.center(),vec2((workspace.width()-24.0).min(350.0),(workspace.height()-24.0).min(260.0)));
@@ -267,4 +272,16 @@ mod layout_tests {
         render(&ctx,&mut g,960.0,720.0);let out=render(&ctx,&mut g,960.0,720.0);assert!(g.pets_open);assert!(g.interface_open);
         assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Удалить")));
     }
+    #[test] fn hatch_hides_game_gui_and_centers_the_scene() {
+        for elapsed in [1.5,3.1] {
+            let ctx=egui::Context::default();let mut g=game::Game::default();g.coins=500.0;g.buy_capsule(game::Capsule::Meadow);g.hatch.as_mut().unwrap().elapsed=elapsed;
+            render(&ctx,&mut g,960.0,540.0);let out=render(&ctx,&mut g,960.0,540.0);
+            let texts:Vec<_>=out.shapes.iter().filter_map(|s|match &s.shape {egui::Shape::Text(t)=>Some(t.galley.job.text.as_str()),_=>None}).collect();
+            assert!(!texts.iter().any(|t|["Главная","МОЙ ПРОФИЛЬ","Автоатака"].contains(t)));
+            assert!(texts.contains(&if elapsed<3.0 {"ОТКРЫТИЕ КАПСУЛЫ"} else {"НОВЫЙ ПИТОМЕЦ!"}));
+            let background=out.shapes.iter().find_map(|s|match &s.shape {egui::Shape::Rect(r) if r.fill==egui::Color32::from_rgb(166,207,224)=>Some(r.rect),_=>None}).unwrap();
+            assert!(background.left()<1.0&&background.width()>959.0);
+        }
+    }
+
 }
