@@ -2,6 +2,8 @@
 pub mod game;
 mod pet_render;
 mod pet_ui;
+mod updates;
+mod save_format;
 
 use std::{sync::Arc, time::Instant};
 use winit::{application::ApplicationHandler, event::WindowEvent, event_loop::{ActiveEventLoop, EventLoop}, window::{Window, WindowId}};
@@ -22,6 +24,8 @@ struct App {
     last_tick: Option<Instant>,
     save_path: Option<std::path::PathBuf>,
     last_save: Option<Instant>,
+    update_error: Option<String>,
+    boot_healthy: bool,
 }
 
 fn save_game(game: &game::Game, path: Option<&std::path::Path>) {
@@ -93,7 +97,8 @@ fn nav_icon(p: &egui::Painter, center: egui::Pos2, index: usize, color: egui::Co
     }
 }
 
-fn ui(ctx: &egui::Context, game: &mut game::Game) {
+fn ui(ctx: &egui::Context, game: &mut game::Game, update_error: Option<&str>) -> bool {
+    let mut update_requested = false;
     use egui::{Color32 as C, RichText as T, Stroke, pos2, vec2, Rect, Align2, FontId, Sense};
     let navy = C::from_rgb(9, 14, 33);
     let panel = C::from_rgba_unmultiplied(30, 53, 87, 220);
@@ -311,12 +316,17 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                 ui.vertical_centered(|ui| {
                     ui.add_space(12.0);
                     ui.label("Доход и нажатия остановлены");
+                    let build = option_env!("GITHUB_SHA").unwrap_or("development");
+                    ui.label(format!("Button Sim {} · {}", env!("CARGO_PKG_VERSION"), &build[..build.len().min(8)]));
+                    if ui.add_sized(vec2(ui.available_width(), 44.0), egui::Button::new("Обновить игру (OTA)")).clicked() { update_requested = true; }
+                    if let Some(error) = update_error { ui.colored_label(C::LIGHT_RED, error); }
                     ui.add_space(18.0);
                     if ui.add_sized(vec2(ui.available_width(), 48.0), egui::Button::new("Продолжить").fill(gold)).clicked() { game.paused = false; }
                     ui.add_space(10.0);
                 });
             });
     }
+    update_requested
 }
 
 impl ApplicationHandler for App {
@@ -350,7 +360,13 @@ impl ApplicationHandler for App {
                 self.game.tick(dt);
                 let before = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths);
                 let input = g.state.take_egui_input(&g.gpu.window);
-                let output = g.egui.run(input, |ctx| ui(ctx, &mut self.game));
+                let mut update_requested = false;
+                let update_error = self.update_error.clone();
+                let output = g.egui.run(input, |ctx| { update_requested = ui(ctx, &mut self.game, update_error.as_deref()); });
+                if update_requested {
+                    save_game(&self.game, self.save_path.as_deref());
+                    self.update_error = updates::open().err();
+                }
                 let after = (self.game.pets.len(), self.game.equipped_pets.clone(), self.game.auto_attack, self.game.upgrades, self.game.rebirths);
                 if before != after || self.last_save.map(|t| now.duration_since(t).as_secs() >= 5).unwrap_or(true) {
                     save_game(&self.game, self.save_path.as_deref());
@@ -382,6 +398,7 @@ impl ApplicationHandler for App {
                 }
                 g.gpu.queue.submit(Some(encoder.finish()));
                 frame.present();
+                if !self.boot_healthy { updates::mark_ready(); self.boot_healthy = true; }
                 for id in &output.textures_delta.free { g.renderer.free_texture(id); }
                 g.gpu.window.request_redraw();
             }
@@ -406,6 +423,7 @@ pub fn run_desktop() {
 fn android_main(android_app: winit::platform::android::activity::AndroidApp) {
     use winit::{event_loop::EventLoopBuilder, platform::android::EventLoopBuilderExtAndroid};
     android_logger::init_once(android_logger::Config::default().with_max_level(log::LevelFilter::Info));
+    updates::configure(android_app.clone());
     let save_path = android_app.internal_data_path().unwrap_or_else(std::env::temp_dir).join("button-sim-save.txt");
     let event_loop = EventLoopBuilder::default().with_android_app(android_app).build().expect("android event loop");
     let mut app = App::with_save_path(save_path);

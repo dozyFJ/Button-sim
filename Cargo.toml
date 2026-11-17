@@ -1,6 +1,6 @@
 [package]
 name = "button-sim"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 
@@ -14,7 +14,6 @@ name = "button-sim"
 path = "src/main.rs"
 
 [dependencies]
-wolfcraft-engine = { git = "https://github.com/dozyFJ/WolfCraft", rev = "0897b675aebaa1d496b644d4e73f6f612a03d760" }
 wolfcraft-common = { git = "https://github.com/dozyFJ/WolfCraft", rev = "0897b675aebaa1d496b644d4e73f6f612a03d760" }
 wgpu = "22.1"
 winit = "0.30.13"
@@ -27,6 +26,7 @@ log = "0.4"
 [target.'cfg(target_os = "android")'.dependencies]
 winit = { version = "0.30.13", features = ["android-native-activity"] }
 android_logger = "0.14"
+jni = "0.21"
 
 [package.metadata.android]
 package = "com.dozyfj.buttonsim"
@@ -44,3 +44,11 @@ theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
 [package.metadata.android.application.activity]
 orientation = "portrait"
 config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode"
+
+[profile.release]
+opt-level = "z"
+lto = "thin"
+codegen-units = 1
+debug = false
+strip = "symbols"
+panic = "abort"
