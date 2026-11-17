@@ -199,6 +199,7 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
         pet_ui::overlays(ctx,game);
         return false;
     }
+    let previous_tab = game.tab;
     sidebar_ui::draw(ctx,game,&mut state);
     game.pets_open=state.panel==Panel::Pets;game.interface_open=state.busy();
     let workspace=ctx.available_rect();
@@ -225,6 +226,10 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
         }
     } else {
         state.board_swipe = None;
+    }
+    if previous_tab != game.tab { game.attack_clock = 0.0; }
+    if game.tab != game::Tab::Capsules {
+        ctx.data_mut(|data| data.remove::<f64>(egui::Id::new("egg_opened")));
     }
     let mut update_requested=false;
     if game.paused {
@@ -394,7 +399,7 @@ mod layout_tests {
         }
     }
     #[test]
-    fn second_board_shows_rebirth_tiles_without_auto_attack() {
+    fn second_board_shows_rebirth_tiles_and_auto_attack() {
         let ctx = egui::Context::default();
         let mut game = game::Game::default();
         game.tab = game::Tab::Rebirths;
@@ -405,7 +410,7 @@ mod layout_tests {
             _ => None,
         }).collect();
         assert!(labels.contains(&"Плитки ребёрта"));
-        assert!(!labels.contains(&"Автоатака"));
+        assert!(labels.contains(&"Автоатака"));
     }
     #[test]
     fn boost_hud_shows_only_active_names_and_timers() {

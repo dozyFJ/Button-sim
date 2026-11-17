@@ -49,13 +49,15 @@ pub struct Game {
     pub dark_mode: bool,
     pub active_boosts: Vec<ActiveBoost>,
     revealed_switches: usize,
+    rebirth_damage: u64,
+    pub last_reward: Option<(usize, f64)>,
     switch_damage: Vec<u64>,
     pet_xp: std::collections::BTreeMap<usize, u64>,
     rng:u64,
 }
 impl Default for Game {
     fn default()->Self { Self { coins:0.0,multiplier:1,base_income:1.0,upgrades:0,tab:Tab::Home,paused:false,
-        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,active_boosts:Vec::new(),revealed_switches:5,switch_damage:vec![0;1024],pet_xp:Default::default(),
+        taps:0,total_earned:0.0,played_seconds:0.0,rebirths:0,pets:Vec::new(),equipped_pet:None,hatch:None,pets_open:false,equipped_pets:Vec::new(),auto_attack:false,attack_clock:0.0,auto_hits:0,grid_size:32,selected_switch:0,switches:vec![false;1024],interface_open:false,dark_mode:false,active_boosts:Vec::new(),revealed_switches:5,rebirth_damage:0,last_reward:None,switch_damage:vec![0;1024],pet_xp:Default::default(),
         rng:std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_nanos() as u64).unwrap_or(1).max(1) } }
 }
 impl Game {
@@ -110,7 +112,20 @@ impl Game {
         self.coins -= price;
         self.multiplier = self.multiplier.saturating_add(1);
         self.switch_damage[index] = 0;
+        self.last_reward = Some((index, self.played_seconds));
         self.attack_clock = 0.0;
+        true
+    }
+    pub fn rebirth_tile_max_hp(index: u32) -> u64 { 20 + 10 * u64::from(index) }
+    pub fn rebirth_tile_hp(&self) -> u64 { Self::rebirth_tile_max_hp(self.rebirths) - self.rebirth_damage }
+    fn damage_rebirth_tile(&mut self, damage: u64) {
+        self.rebirth_damage = self.rebirth_damage.saturating_add(damage).min(Self::rebirth_tile_max_hp(self.rebirths));
+        self.taps = self.taps.saturating_add(1);
+    }
+    pub fn tap_rebirth_tile(&mut self) -> bool {
+        if self.paused || self.hatch.is_some() || self.interface_open || self.pets_open { return false; }
+        if self.rebirth_tile_hp() == 0 { return self.rebirth(); }
+        self.damage_rebirth_tile(1);
         true
     }
     pub fn tick(&mut self,seconds:f64) {
@@ -122,8 +137,9 @@ impl Game {
         if let Some(h)=&mut self.hatch { h.elapsed+=dt; }
         if self.attack_running() {
             let target = self.selected_switch;
-            if self.switch_hp(target) == 0 {
-                self.buy_switch_reward(target);
+            let rebirth_tile = self.tab == Tab::Rebirths;
+            if if rebirth_tile { self.rebirth_tile_hp() == 0 } else { self.switch_hp(target) == 0 } {
+                if rebirth_tile { self.rebirth(); } else { self.buy_switch_reward(target); }
                 return;
             }
             let before = self.attack_clock;
@@ -141,11 +157,14 @@ impl Game {
                 let index = self.equipped_pets[slot];
                 let xp = self.pet_xp.entry(index).or_default();
                 *xp = xp.saturating_add(1);
-                self.damage_switch(self.pets[index].damage());
+                let damage = self.pets[index].damage();
                 self.auto_hits = self.auto_hits.saturating_add(1);
-                if self.switch_hp(target) == 0 {
-                    self.buy_switch_reward(target);
-                    break;
+                if rebirth_tile {
+                    self.damage_rebirth_tile(damage);
+                    if self.rebirth_tile_hp() == 0 { self.rebirth(); break; }
+                } else {
+                    self.damage_switch(damage);
+                    if self.switch_hp(target) == 0 { self.buy_switch_reward(target); break; }
                 }
                 next[slot] = time + 1.0;
             }
@@ -160,12 +179,14 @@ impl Game {
         1.0+self.equipped_pets.iter().filter_map(|&i|self.pets.get(i)).map(|p|p.bonus()-1.0).sum::<f64>()
     }
     pub fn attack_running(&self)->bool {
-        self.tab != Tab::Rebirths && self.auto_attack&&!self.paused&&self.hatch.is_none()&&!self.pets_open&&!self.interface_open&&!self.equipped_pets.is_empty()&&self.switch_unlocked(self.selected_switch)
+        self.auto_attack && !self.paused && self.hatch.is_none() && !self.pets_open
+            && !self.interface_open && !self.equipped_pets.is_empty()
+            && (self.tab == Tab::Rebirths || self.tab == Tab::Home && self.switch_unlocked(self.selected_switch))
     }
     pub fn toggle_auto_attack(&mut self)->bool {
         if self.paused||self.hatch.is_some()||self.pets_open||self.equipped_pets.is_empty() { return false; }
         self.auto_attack=!self.auto_attack;self.attack_clock=0.0;
-        if self.auto_attack { self.tab=Tab::Home; }
+        if self.auto_attack && self.tab != Tab::Rebirths { self.tab=Tab::Home; }
         true
     }
     pub fn attack_phase(&self,slot:usize)->f32 {
@@ -187,7 +208,7 @@ impl Game {
         if self.paused||self.hatch.is_some()||self.coins<self.rebirth_price() { return false; }
         self.reveal_affordable_switches();
         self.coins=0.0; self.multiplier=1; self.base_income=1.0; self.upgrades=0;
-        self.rebirths=self.rebirths.saturating_add(1); self.attack_clock=0.0; true
+        self.rebirths=self.rebirths.saturating_add(1); self.rebirth_damage=0; self.attack_clock=0.0; true
     }
     pub fn buy_capsule(&mut self,capsule:Capsule)->bool {
         if self.paused||self.hatch.is_some()||self.pets.len()>=1000||self.coins<capsule.price() { return false; }
@@ -281,12 +302,12 @@ impl Game {
             .map(|(index, damage)| format!("{index}:{damage}")).collect::<Vec<_>>().join(",");
         let xp = self.pet_xp.iter().map(|(index, xp)| format!("{index}:{xp}"))
             .collect::<Vec<_>>().join(",");
-        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n{}\n{}\n",
+        format!("BUTTON_SIM_1\n{} {} {} {} {} {} {} {}\n{}\n{}\n{}\n{}\n{}\n{} {}\n{}\n{}\n{}\n{}\n{}\n{}\n",
             self.coins,self.multiplier,self.base_income,self.upgrades,self.taps,self.total_earned,self.played_seconds,self.rebirths,
             pets,self.equipped_pet.map(|i|i.to_string()).unwrap_or_else(||"-".into()),
             self.equipped_pets.iter().map(|i|i.to_string()).collect::<Vec<_>>().join(","),
             self.auto_attack,self.auto_hits,self.grid_size,self.selected_switch,
-            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage,xp,self.revealed_switches)
+            self.switches.iter().map(|b|if *b {'1'} else {'0'}).collect::<String>(), self.dark_mode,damage,xp,self.revealed_switches,self.rebirth_damage)
     }
     pub fn from_save(text:&str)->Option<Self> {
         let mut lines=text.lines(); if lines.next()? !="BUTTON_SIM_1" { return None; }
@@ -348,6 +369,12 @@ impl Game {
                 .map_or(5, |index| index + 1);
             previously_used.max(g.selected_switch + 1).max(5)
         };
+        if let Some(damage) = lines.next().filter(|line| !line.is_empty()) {
+            // A previous release briefly stored a colon-delimited cooldown list here.
+            if !damage.contains(':') {
+                g.rebirth_damage = damage.parse::<u64>().ok()?.min(Self::rebirth_tile_max_hp(g.rebirths));
+            }
+        }
         g.reveal_affordable_switches();
         if !g.switch_unlocked(g.selected_switch) { g.selected_switch = 0; }
         g.grid_size=32;
@@ -431,6 +458,25 @@ mod tests {
         g.tick(1.69);assert_eq!(g.auto_hits,0);g.tick(0.02);
         assert_eq!(g.auto_hits,1);assert_eq!(g.switch_hp(0),4);assert_eq!(g.multiplier,1);assert!(g.pet_is_striking(0));
     }
+    #[test]
+    fn pets_can_defeat_and_purchase_the_current_rebirth_tile() {
+        let mut game = Game::default();
+        game.tab = Tab::Rebirths;
+        game.coins = 10_000.0;
+        game.pets.push(PetKind::Dragon);
+        game.equip_pet(0);
+        game.toggle_auto_attack();
+        game.tick(1.8);
+        assert_eq!(game.rebirth_tile_hp(), 8);
+        game = Game::from_save(&game.save_text()).unwrap();
+        game.tab = Tab::Rebirths;
+        game.tick(1.8);
+        assert_eq!(game.rebirths, 1);
+        assert_eq!(game.coins, 0.0);
+        assert_eq!(game.rebirth_tile_hp(), 30);
+        assert_eq!(game.switch_hp(0), 6);
+    }
+
     #[test]
     fn pets_collect_depleted_rewards_when_the_balance_is_sufficient() {
         let mut game = Game::default();

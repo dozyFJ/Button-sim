@@ -55,7 +55,7 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 if !ui.is_rect_visible(r) {continue;}
                 let completed = rebirths && index < game.rebirths as usize;
                 let selected = if rebirths { index == game.rebirths as usize } else { index == game.selected_switch };
-                let unlocked = if rebirths { completed || selected && game.coins >= game.rebirth_price() } else { game.switch_unlocked(index) };
+                let unlocked = if rebirths { completed || selected } else { game.switch_unlocked(index) };
                 let active = if rebirths { completed } else { game.switches[index] };
                 let t = ui.ctx().animate_bool_with_time(ui.id().with(("switch", index)), active, 0.16);
                 let tilt=(t-0.5)*8.0;
@@ -100,14 +100,16 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 let ink = if unlocked { crate::theme_color(dark, [45,62,38], [247,243,255]) } else { crate::theme_color(dark, [38,41,45], [231,232,238]) };
                 if rebirths {
                     let price = Game::rebirth_price_at(index as u32);
-                    let status = if completed { "ГОТОВО" } else if selected { "СЛЕД." } else { "ЗАКРЫТО" };
+                    let max_hp = Game::rebirth_tile_max_hp(index as u32);
+                    let hp = if selected { game.rebirth_tile_hp() } else { max_hp };
+                    let status = if completed { "ГОТОВО".into() } else if selected && hp == 0 {
+                        "КУПИ РЕБЕРТ".into()
+                    } else if selected { format!("{hp}/{max_hp}") } else { "ЗАКРЫТО".into() };
                     crate::surface_gui::paint(p, face, &[
-                        format!("РЕБЕРТ {}", index + 1),
-                        format!("ЦЕНА {}", amount(price)),
-                        "ДОХОД X2".into(),
-                        status.into(),
-                    ], ink, None, !unlocked);
-                    if unlocked && selected && response.clicked() { game.rebirth(); }
+                        format!("РЕБЕРТ {}", index + 1), status,
+                        format!("ЦЕНА {}", amount(price)), "ДОХОД X2".into(),
+                    ], ink, selected.then_some(hp as f32 / max_hp as f32), !unlocked);
+                    if selected && response.clicked() { game.tap_rebirth_tile(); }
                 } else {
                     let max_hp = Game::switch_max_hp(index);
                     let hp = game.switch_hp(index);
@@ -130,7 +132,21 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                     p.rect_stroke(Rect::from_center_size(center - vec2(0.0, 3.0), vec2(7.0, 9.0)), 3.0, Stroke::new(1.5, lock));
                     p.rect_filled(Rect::from_center_size(center + vec2(0.0, 2.5), vec2(11.0, 8.0)), 2.0, lock);
                 }
-                if unlocked && !rebirths && selected && game.switch_hp(index) > 0 && !game.equipped_pets.is_empty() {
+                if !rebirths {
+                    if let Some((_, started)) = game.last_reward.filter(|(reward, _)| *reward == index) {
+                        let t = ((game.played_seconds - started) / 0.65) as f32;
+                        if (0.0..1.0).contains(&t) {
+                            let position = r.center() - vec2(0.0, 12.0 + t * 22.0);
+                            let font = egui::FontId::proportional(15.0);
+                            p.text(position + vec2(1.0, 1.0), egui::Align2::CENTER_CENTER,
+                                "+1 к множителю", font.clone(), C::BLACK.gamma_multiply(1.0 - t));
+                            p.text(position, egui::Align2::CENTER_CENTER,
+                                "+1 к множителю", font, C::WHITE.gamma_multiply(1.0 - t));
+                        }
+                    }
+                }
+                let target_alive = if rebirths { game.rebirth_tile_hp() > 0 } else { game.switch_hp(index) > 0 };
+                if unlocked && selected && target_alive && !game.equipped_pets.is_empty() {
                     crate::pet_ui::attack_scene(p,Rect::from_center_size(r.center(),r.size()),r.center(),side*0.62,game);
                 }
             }
