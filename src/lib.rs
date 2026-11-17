@@ -452,7 +452,7 @@ mod layout_tests {
         assert!(xp.x > rarity.x && xp.y < collection.y && rarity.y < collection.y, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
     }
     #[test]
-    fn egg_shop_shows_categories_left_of_two_card_columns() {
+    fn egg_shop_shows_categories_left_of_a_single_card_column() {
         let ctx = egui::Context::default();
         let mut game = game::Game::default();
         game.tab = game::Tab::Capsules;
@@ -465,8 +465,8 @@ mod layout_tests {
         let category = label("Редкие");
         let meadow = label("Луговое яйцо");
         let sun = label("Солнечное яйцо");
-        assert!(category.x < meadow.x && meadow.x < sun.x);
-        assert!((meadow.y - sun.y).abs() < 2.0);
+        assert!(category.x < meadow.x && category.x < sun.x);
+        assert!(meadow.y + 80.0 < sun.y);
     }
     #[test] fn hatch_hides_game_gui_and_centers_the_scene() {
         for elapsed in [1.5,3.1] {

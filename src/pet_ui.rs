@@ -76,10 +76,8 @@ pub fn shop(ui: &mut egui::Ui, game: &mut Game) {
         }).collect();
         egui::ScrollArea::vertical().id_salt("egg_cards").max_height(body.height()).show(ui, |ui| {
             if eggs.is_empty() { ui.label("Яйца не найдены"); }
-            for pair in eggs.chunks(2) {
-                ui.columns(2, |columns| {
-                    for (column, &egg) in columns.iter_mut().zip(pair) { egg_card(column, game, egg); }
-                });
+            for egg in eggs {
+                egg_card(ui, game, egg);
                 ui.add_space(6.0);
             }
             if game.pets.len() >= 1000 { ui.label("Коллекция заполнена"); }
