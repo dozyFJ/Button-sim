@@ -79,7 +79,7 @@ pub fn shop(ui: &mut egui::Ui, game: &mut Game) {
             let matches = egg.name().to_lowercase().contains(&query) || egg.drops().iter().any(|(pet, _)| pet.name().to_lowercase().contains(&query));
             has_rarity && matches
         }).collect();
-        egui::ScrollArea::vertical().id_salt("egg_cards").max_height(body.height()).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("egg_cards").max_height((body.height() - 56.0).max(0.0)).show(ui, |ui| {
             if eggs.is_empty() { ui.label("Яйца не найдены"); }
             for egg in eggs {
                 egg_card(ui, game, egg);
@@ -166,7 +166,8 @@ pub fn attack_scene(p:&egui::Painter,rect:Rect,center:egui::Pos2,button_size:f32
 }
 
 pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut crate::gui_state::GuiState) -> Rect {
-    let width: f32 = 220.0;
+    let eggs = game.tab == crate::game::Tab::Capsules;
+    let width: f32 = if eggs { 96.0 } else { 246.0 };
     let size = vec2(width.min((workspace.width() - 16.0).max(0.0)), 50.0);
     egui::Area::new(egui::Id::new("canvas_page_controls")).order(egui::Order::Foreground)
         .fixed_pos(workspace.right_bottom() - size - vec2(8.0, 8.0)).show(ctx, |ui| {
@@ -178,13 +179,14 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
             }
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 3.0;
-                for (tab, label) in [(crate::game::Tab::Home, "Множитель"), (crate::game::Tab::Rebirths, "Ребёрты")] {
+                for (tab, label) in crate::FIELD_PAGES {
                     let active = game.tab == tab;
                     let (rect, response) = ui.allocate_exact_size(vec2(24.0, 34.0), Sense::click());
                     let ink = ui.visuals().text_color().gamma_multiply(if active { 1.0 } else { 0.42 });
                     ui.painter().circle_filled(rect.center(), if active { 4.0 } else { 3.0 }, ink);
                     if response.on_hover_text(label).clicked() { game.tab = tab; }
                 }
+                if eggs { return; }
                 ui.separator();
                 ui.vertical(|ui| {ui.label(T::new("Автоатака").strong());ui.label(T::new(if game.auto_attack {"Вкл"} else {"Выкл"}).size(11.0));});
                 let (rect,response)=ui.allocate_exact_size(vec2(56.0,30.0),Sense::click());

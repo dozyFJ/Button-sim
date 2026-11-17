@@ -157,8 +157,14 @@ fn apply_theme(ctx: &egui::Context, dark: bool) {
     ctx.set_visuals(visuals);
 }
 
+const FIELD_PAGES: [(game::Tab, &str); 3] = [
+    (game::Tab::Home, "Множитель"),
+    (game::Tab::Rebirths, "Ребёрты"),
+    (game::Tab::Capsules, "Яйца"),
+];
+
 fn board_swipe(
-    ctx: &egui::Context, field: egui::Rect, controls: egui::Rect,
+    ctx: &egui::Context, field: egui::Rect, controls: egui::Rect, current: game::Tab,
     start: &mut Option<(egui::TouchId, egui::Pos2)>,
 ) -> Option<game::Tab> {
     ctx.input(|input| {
@@ -172,7 +178,9 @@ fn board_swipe(
                     let (_, origin) = start.take().unwrap();
                     let delta = *pos - origin;
                     if *phase == egui::TouchPhase::End && delta.x.abs() >= 55.0 && delta.x.abs() >= 1.65 * delta.y.abs() {
-                        return Some(if delta.x > 0.0 { game::Tab::Rebirths } else { game::Tab::Home });
+                        let index = FIELD_PAGES.iter().position(|(tab, _)| *tab == current)?;
+                        let next = index.checked_add_signed(if delta.x < 0.0 { 1 } else { -1 })?;
+                        return FIELD_PAGES.get(next).map(|(tab, _)| *tab);
                     }
                 }
                 _ => {}
@@ -203,6 +211,7 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     sidebar_ui::draw(ctx,game,&mut state);
     game.pets_open=state.panel==Panel::Pets;game.interface_open=state.busy();
     let workspace=ctx.available_rect();
+    let rendered_tab = game.tab;
     let blocked=game.paused||game.hatch.is_some()||game.interface_open;
     egui::CentralPanel::default().frame(egui::Frame::none().fill(theme_color(game.dark_mode, [166,207,224], [10,20,39])).inner_margin(egui::Margin::same(if game.tab==game::Tab::Capsules {10.0} else {0.0}))).show(ctx,|ui| {
         ui.add_enabled_ui(!blocked,|ui| {
@@ -213,12 +222,16 @@ fn ui(ctx:&egui::Context,game:&mut game::Game,update_error:Option<&str>)->bool {
     });
     panels_ui::draw(ctx,workspace,game,&mut state);
     inventory_ui::draw(ctx,workspace,game,&mut state);
-    if matches!(game.tab, game::Tab::Home | game::Tab::Rebirths) && !blocked {
+    if FIELD_PAGES.iter().any(|(tab, _)| *tab == game.tab) && !blocked {
         let previous = game.tab;
         let controls = pet_ui::board_controls(ctx, workspace, game, &mut state);
         if game.tab == game::Tab::Home { pet_ui::boost_status(ctx, workspace, controls, game); }
-        if !state.busy() && game.tab == previous {
-            if let Some(tab) = board_swipe(ctx, workspace, controls, &mut state.board_swipe) {
+        if !state.busy() && game.tab == previous && game.tab == rendered_tab {
+            let mut swipe_area = workspace;
+            if game.tab == game::Tab::Capsules {
+                swipe_area.min.y = (swipe_area.top() + 55.0).min(swipe_area.bottom());
+            }
+            if let Some(tab) = board_swipe(ctx, swipe_area, controls, previous, &mut state.board_swipe) {
                 game.tab = tab;
             }
         } else {
@@ -455,6 +468,29 @@ mod layout_tests {
         let xp = label("Ур. 1");
         let collection = label("Инвентарь 1/1000");
         assert!(xp.x > rarity.x && xp.y < collection.y && rarity.y < collection.y, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
+    }
+    #[test]
+    fn swipes_follow_the_three_field_pages_in_order() {
+        use egui::{Event, RawInput, Rect, TouchDeviceId, TouchId, TouchPhase, pos2};
+        let ctx = egui::Context::default();
+        let mut game = game::Game::default();
+        render(&ctx, &mut game, 360.0, 740.0);
+        for (start, end, expected) in [
+            (250.0, 100.0, game::Tab::Rebirths),
+            (250.0, 100.0, game::Tab::Capsules),
+            (100.0, 250.0, game::Tab::Rebirths),
+            (100.0, 250.0, game::Tab::Home),
+        ] {
+            let events = [(TouchPhase::Start, start), (TouchPhase::End, end)].into_iter()
+                .map(|(phase, x)| Event::Touch {
+                    device_id: TouchDeviceId(0), id: TouchId(0), phase, pos: pos2(x, 320.0), force: None,
+                }).collect();
+            let _ = ctx.run(RawInput {
+                screen_rect: Some(Rect::from_min_max(pos2(0.0, 0.0), pos2(360.0, 740.0))),
+                events, ..Default::default()
+            }, |ctx| { ui(ctx, &mut game, None); });
+            assert_eq!(game.tab, expected);
+        }
     }
     #[test]
     fn egg_shop_shows_categories_left_of_a_single_card_column() {
