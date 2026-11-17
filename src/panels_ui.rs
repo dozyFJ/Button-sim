@@ -8,7 +8,9 @@ pub fn frame(ctx: &egui::Context) -> egui::Frame {
 }
 
 pub fn paint_background(ui: &egui::Ui) {
-    if !ui.visuals().dark_mode {
+    if ui.visuals().dark_mode {
+        crate::paint_dark_glass(ui.painter(), ui.max_rect(), 0.0, ui.visuals().window_fill);
+    } else {
         crate::paint_white_aero(ui.painter(), ui.max_rect());
     }
 }

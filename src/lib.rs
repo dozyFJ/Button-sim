@@ -101,15 +101,10 @@ fn theme_color(dark: bool, light: [u8; 3], night: [u8; 3]) -> egui::Color32 {
     egui::Color32::from_rgb(r, g, b)
 }
 
-fn paint_white_aero(painter: &egui::Painter, rect: egui::Rect) {
-    use egui::{Color32, Mesh, Shape, pos2};
+fn paint_aero_gradient(painter: &egui::Painter, rect: egui::Rect, colors: [egui::Color32; 4]) {
+    use egui::{Mesh, Shape, pos2};
     let mut mesh = Mesh::default();
-    for (position, color) in [
-        (0.0, Color32::WHITE),
-        (0.46, Color32::from_rgb(247, 250, 252)),
-        (0.48, Color32::from_rgb(234, 240, 244)),
-        (1.0, Color32::from_rgb(249, 251, 252)),
-    ] {
+    for (position, color) in [0.0, 0.46, 0.48, 1.0].into_iter().zip(colors) {
         let y = rect.top() + rect.height() * position;
         mesh.colored_vertex(pos2(rect.left(), y), color);
         mesh.colored_vertex(pos2(rect.right(), y), color);
@@ -121,12 +116,44 @@ fn paint_white_aero(painter: &egui::Painter, rect: egui::Rect) {
     painter.add(Shape::mesh(mesh));
 }
 
+fn paint_white_aero(painter: &egui::Painter, rect: egui::Rect) {
+    use egui::Color32 as C;
+    paint_aero_gradient(painter, rect, [C::WHITE, C::from_rgb(247,250,252), C::from_rgb(234,240,244), C::from_rgb(249,251,252)]);
+}
+
+fn paint_dark_glass(painter: &egui::Painter, rect: egui::Rect, radius: f32, tint: egui::Color32) {
+    use egui::{Color32 as C, Stroke, pos2};
+    painter.rect_filled(rect, radius, tint);
+    if radius == 0.0 {
+        paint_aero_gradient(painter, rect, [
+            C::from_rgba_unmultiplied(158,184,255,65), C::from_white_alpha(14),
+            C::from_black_alpha(30), C::from_rgba_unmultiplied(93,131,245,28),
+        ]);
+        return;
+    }
+    let inset = rect.shrink(1.5);
+    let shine = egui::Rect::from_min_max(inset.min, pos2(inset.right(), inset.top() + inset.height() * 0.48));
+    painter.rect_filled(shine, egui::Rounding { nw: radius - 1.5, ne: radius - 1.5, sw: 2.0, se: 2.0 }, C::from_white_alpha(23));
+    painter.rect_stroke(rect, radius, Stroke::new(1.0_f32, C::from_rgba_unmultiplied(177,196,255,112)));
+}
+
 fn apply_theme(ctx: &egui::Context, dark: bool) {
     let mut visuals = if dark { egui::Visuals::dark() } else { egui::Visuals::light() };
     visuals.panel_fill = theme_color(dark, [246,238,211], [24,23,42]);
     visuals.window_fill = theme_color(dark, [250,244,222], [32,29,53]);
     visuals.selection.bg_fill = theme_color(dark, [93,161,71], [83,56,166]);
     visuals.override_text_color = Some(theme_color(dark, [39,54,41], [241,237,255]));
+    if dark {
+        use egui::{Color32 as C, Stroke};
+        visuals.panel_fill = C::from_rgba_unmultiplied(20,25,54,240);
+        visuals.window_fill = C::from_rgba_unmultiplied(26,31,62,247);
+        visuals.window_stroke = Stroke::new(1.0_f32, C::from_rgb(96,119,172));
+        visuals.extreme_bg_color = C::from_rgb(13,19,39);
+        visuals.widgets.inactive.weak_bg_fill = C::from_rgb(38,49,86);
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, C::from_rgb(88,111,159));
+        visuals.widgets.hovered.weak_bg_fill = C::from_rgb(53,70,120);
+        visuals.widgets.active.weak_bg_fill = C::from_rgb(63,71,149);
+    }
     ctx.set_visuals(visuals);
 }
 

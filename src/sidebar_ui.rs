@@ -17,7 +17,10 @@ fn tile(ui: &mut egui::Ui, width: f32, label: &str, icon: usize, active: bool) -
     let color = if active && !dark { C::BLACK } else { ui.visuals().text_color() };
     let (rect, response) = ui.allocate_exact_size(vec2(width, TILE), Sense::click());
     let painter = ui.painter();
-    if !dark && !active {
+    if dark {
+        let tint = if active { C::from_rgb(62,59,158) } else if response.hovered() { C::from_rgb(48,66,118) } else { C::from_rgb(31,43,83) };
+        crate::paint_dark_glass(painter, rect, 9.0, tint);
+    } else if !active {
         let fill = if response.hovered() { C::from_rgb(231,240,246) } else { C::from_rgb(241,245,248) };
         painter.rect_filled(rect, 9.0, fill);
         let inset = rect.shrink(2.0);
@@ -25,14 +28,7 @@ fn tile(ui: &mut egui::Ui, width: f32, label: &str, icon: usize, active: bool) -
         painter.rect_filled(shine, egui::Rounding { nw: 7.0, ne: 7.0, sw: 2.0, se: 2.0 }, C::WHITE);
         painter.rect_stroke(rect, 9.0, egui::Stroke::new(1.0_f32, C::from_rgb(186,199,209)));
     } else {
-        let fill = if active {
-            crate::theme_color(dark, [93,161,71], [103,63,189])
-        } else if response.hovered() {
-            C::from_rgb(64,59,108)
-        } else {
-            C::from_rgb(42,40,75)
-        };
-        painter.rect_filled(rect, 9.0, fill);
+        painter.rect_filled(rect, 9.0, C::from_rgb(93,161,71));
     }
     let icon_center = rect.center() - vec2(0.0, 8.0);
     if icon < 6 {
@@ -49,7 +45,9 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
     egui::TopBottomPanel::top("portrait_header").exact_height(HEADER).resizable(false)
         .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill).inner_margin(egui::Margin::same(8.0))).show(ctx, |ui| {
         let header_right = ui.max_rect().right();
-        if !ui.visuals().dark_mode {
+        if ui.visuals().dark_mode {
+            crate::paint_dark_glass(ui.painter(), ui.max_rect().expand(8.0), 0.0, ui.visuals().panel_fill);
+        } else {
             crate::paint_white_aero(ui.painter(), ui.max_rect().expand(8.0));
         }
         ui.horizontal(|ui| {
@@ -79,7 +77,11 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             let width = (measured.size().x + 22.0).max(68.0).min(max_width);
             let font_size = 19.0 * ((width - 16.0).max(0.0) / measured.size().x).min(1.0);
             let balance = Rect::from_min_size(pos2(balance_left, profile.rect.top()), vec2(width, 34.0));
-            painter.rect_filled(balance, 8.0, crate::theme_color(ui.visuals().dark_mode, [230,233,207], [53,45,93]));
+            if ui.visuals().dark_mode {
+                crate::paint_dark_glass(painter, balance, 8.0, C::from_rgb(42,48,102));
+            } else {
+                painter.rect_filled(balance, 8.0, C::from_rgb(230,233,207));
+            }
             painter.text(balance.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, text, FontId::proportional(font_size), color);
             let center = pause.rect.center();
             let color = ui.style().interact(&pause).fg_stroke.color;
@@ -105,7 +107,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         let fill = ui.visuals().panel_fill;
         ui.painter().rect_filled(dock, 0.0, crate::theme_color(dark, [213,223,186], [14,15,29]));
         if dark {
-            ui.painter().rect_filled(strip, 0.0, fill);
+            crate::paint_dark_glass(ui.painter(), strip, 0.0, fill);
         } else {
             crate::paint_white_aero(ui.painter(), strip);
         }
@@ -123,14 +125,19 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         let step = (visible.saturating_sub(1).max(1) as f32) * (tile_width + GAP);
         let arrow = |label, enabled| {
             let button = egui::Button::new(label).sense(if enabled { Sense::click() } else { Sense::hover() });
-            if dark { button } else {
+            if dark {
+                button.fill(if enabled { C::from_rgb(41,56,102) } else { C::from_rgb(24,30,55) })
+                    .stroke(egui::Stroke::new(1.0_f32, C::from_rgb(81,102,152)))
+                    .rounding(7.0)
+            } else {
                 button.fill(C::from_rgb(249,251,252))
                     .stroke(egui::Stroke::new(1.0_f32, C::from_rgb(186,199,209)))
                     .rounding(7.0)
             }
         };
-        let left_clicked = ui.put(left, arrow("‹", state.sidebar_scroll > 0.0)).clicked();
-        let right_clicked = ui.put(right, arrow("›", state.sidebar_scroll < max_offset)).clicked();
+        state.sidebar_scroll = state.sidebar_scroll.clamp(0.0, max_offset);
+        let left_clicked = ui.put(left, arrow("‹", state.sidebar_scroll > 0.5)).clicked();
+        let right_clicked = ui.put(right, arrow("›", state.sidebar_scroll < max_offset - 0.5)).clicked();
         if left_clicked { state.sidebar_scroll = (state.sidebar_scroll - step).max(0.0); }
         if right_clicked { state.sidebar_scroll = (state.sidebar_scroll + step).min(max_offset); }
 
@@ -159,7 +166,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
 
         let pages = (max_offset / step).ceil() as usize + 1;
         if pages > 1 {
-            let active = (state.sidebar_scroll / step).round() as usize;
+            let active = if state.sidebar_scroll >= max_offset - 0.5 { pages - 1 } else { (state.sidebar_scroll / step).round() as usize };
             let spacing = 10.0;
             let start = center.x - (pages - 1) as f32 * spacing * 0.5;
             for page in 0..pages {
@@ -176,7 +183,11 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         let painter = ui.painter();
         painter.rect_filled(pocket, egui::Rounding { nw: 0.0, ne: 0.0, sw: 12.0, se: 12.0 }, if dark { fill } else { C::from_rgb(249,251,252) });
         let track = pocket.shrink2(vec2(5.0, 4.0));
-        painter.rect_filled(track, 9.0, crate::theme_color(dark, [46,73,91], [35,40,74]));
+        if dark {
+            crate::paint_dark_glass(painter, track, 9.0, C::from_rgb(27,35,70));
+        } else {
+            painter.rect_filled(track, 9.0, C::from_rgb(46,73,91));
+        }
         let filled = Rect::from_min_size(track.min, vec2(track.width() * game.level_progress(), track.height()));
         if filled.width() > 0.0 {
             painter.rect_filled(filled, 8.0, crate::theme_color(dark, [27,99,137], [52,71,166]));

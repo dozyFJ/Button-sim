@@ -127,6 +127,10 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
         .fixed_pos(workspace.right_bottom() - size - vec2(8.0, 8.0)).show(ctx, |ui| {
         egui::Frame::none().fill(ctx.style().visuals.panel_fill).rounding(14.0).inner_margin(egui::Margin::same(8.0)).show(ui, |ui| {
             ui.set_width((size.x - 16.0).max(0.0));
+            if ui.visuals().dark_mode {
+                let rect = Rect::from_min_size(ui.cursor().min - vec2(7.0, 7.0), size - vec2(2.0, 2.0));
+                crate::paint_dark_glass(ui.painter(), rect, 13.0, ui.visuals().panel_fill);
+            }
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 3.0;
                 for (tab, label) in [(crate::game::Tab::Home, "Множитель"), (crate::game::Tab::Rebirths, "Ребёрты")] {
@@ -141,7 +145,12 @@ pub fn board_controls(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mu
                 ui.vertical(|ui| {ui.label(T::new("Автоатака").strong());ui.label(T::new(if game.auto_attack {"Вкл"} else {"Выкл"}).size(11.0));});
                 let (rect,response)=ui.allocate_exact_size(vec2(56.0,30.0),Sense::click());
                 let t=ctx.animate_bool(response.id,game.auto_attack);
-                ui.painter().rect_filled(rect,15.0,if game.auto_attack {GREEN} else {C::from_rgb(155,165,151)});
+                if ui.visuals().dark_mode {
+                    let tint = if game.auto_attack { C::from_rgb(23,120,122) } else { C::from_rgb(44,56,96) };
+                    crate::paint_dark_glass(ui.painter(), rect, 15.0, tint);
+                } else {
+                    ui.painter().rect_filled(rect,15.0,if game.auto_attack {GREEN} else {C::from_rgb(155,165,151)});
+                }
                 ui.painter().circle_filled(pos2(rect.left()+15.0+t*(rect.width()-30.0),rect.center().y),11.0,C::WHITE);
                 if response.clicked() {
                     if game.equipped_pets.is_empty() {state.pets();} else {game.toggle_auto_attack();}

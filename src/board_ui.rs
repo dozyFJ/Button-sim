@@ -86,6 +86,13 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                     crate::theme_color(dark, [104,119,76], [124,111,183])
                 };
                 p.add(Shape::convex_polygon(face.to_vec(), fill, Stroke::new(if selected { 3.0 } else { 1.0 }, border)));
+                if dark && unlocked {
+                    let ceiling = face[0].lerp(face[3], 0.40);
+                    let right_edge = face[1].lerp(face[2], 0.40);
+                    p.add(Shape::convex_polygon(vec![face[0], face[1], right_edge, ceiling], C::from_white_alpha(19), Stroke::NONE));
+                    let rim = C::from_rgba_unmultiplied(181,203,255,101);
+                    p.line_segment([face[0], face[1]], Stroke::new(1.0_f32, rim));
+                }
                 let highlight = C::from_white_alpha(if dark { 52 } else { 92 });
                 for (y, width) in [(0.0, 13.0), (3.0, 7.0), (6.0, 3.0)] {
                     p.rect_filled(Rect::from_min_size(face[0] + vec2(5.0, 5.0 + y), vec2(width, 3.0)), 0.0, highlight);
