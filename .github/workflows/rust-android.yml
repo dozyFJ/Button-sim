@@ -40,18 +40,30 @@ jobs:
           APK="$(find target -name '*.apk' -type f | head -1)"
           test -n "$APK"
           cp "$APK" build/button-sim.apk
+      - name: Align, sign and verify APK
+        run: |
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -x "$BUILD_TOOLS/apksigner"
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          "$BUILD_TOOLS/zipalign" -P 16 -f 4 build/button-sim.apk build/button-sim-aligned.apk
+          "$BUILD_TOOLS/apksigner" sign --ks "$HOME/.android/debug.keystore" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build/button-sim-signed.apk build/button-sim-aligned.apk
+          "$BUILD_TOOLS/apksigner" verify --verbose build/button-sim-signed.apk
+          "$BUILD_TOOLS/zipalign" -c -P 16 4 build/button-sim-signed.apk
       - uses: actions/upload-artifact@v4
         with:
           name: button-sim-apk
-          path: build/button-sim.apk
+          path: build/button-sim-signed.apk
           if-no-files-found: error
       - name: Publish APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view latest-apk >/dev/null 2>&1; then
-            gh release upload latest-apk build/button-sim.apk --clobber
+            gh release upload latest-apk build/button-sim-signed.apk --clobber
             gh release edit latest-apk --notes "WolfCraft Rust build: $GITHUB_SHA"
           else
-            gh release create latest-apk build/button-sim.apk --title "Button Sim — WolfCraft Engine" --notes "WolfCraft Rust build: $GITHUB_SHA" --latest
+            gh release create latest-apk build/button-sim-signed.apk --title "Button Sim — WolfCraft Engine" --notes "WolfCraft Rust build: $GITHUB_SHA" --latest
           fi
