@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 rustc --edition=2024 --test src/game.rs -o /tmp/button-sim-game-tests
+cargo test --lib --target x86_64-unknown-linux-gnu
 /tmp/button-sim-game-tests
 python3 tools/test_ota_producer.py
 mkdir -p /tmp/button-ota-tests

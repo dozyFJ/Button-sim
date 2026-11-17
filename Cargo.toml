@@ -42,7 +42,7 @@ label = "Button Sim"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
 
 [package.metadata.android.application.activity]
-orientation = "portrait"
+orientation = "landscape"
 config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode"
 
 [profile.release]

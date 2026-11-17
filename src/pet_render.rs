@@ -1,5 +1,5 @@
 //! Procedural 3D meshes projected into egui: real vertices, perspective and depth-sorted shaded faces.
-use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, pos2, vec2};
+use egui::{Color32, Painter, Rect, Shape, Stroke, pos2, vec2};
 use crate::game::PetKind;
 type V = [f32;3];
 struct Face { vertices:[V;3], color:[u8;3], edges:[bool;3] }
@@ -28,7 +28,7 @@ fn egg(faces:&mut Vec<Face>, c:V, size:f32, tint:[u8;3]) {
         faces.push(Face{vertices:[a,b,c],color,edges:[false;3]});faces.push(Face{vertices:[a,c,d],color,edges:[false;3]});
     } }
 }
-fn draw(p:&Painter,rect:Rect,faces:Vec<Face>,yaw:f32,scale:f32,neon:Option<[u8;3]>) {
+fn draw(p:&Painter,rect:Rect,faces:Vec<Face>,yaw:f32,scale:f32,outline:bool) {
     let transform=|v:V| {
         let x=v[0]*yaw.cos()+v[2]*yaw.sin();
         let z=-v[0]*yaw.sin()+v[2]*yaw.cos();
@@ -49,18 +49,12 @@ fn draw(p:&Painter,rect:Rect,faces:Vec<Face>,yaw:f32,scale:f32,neon:Option<[u8;3
         let normal=[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
         let len=(normal.iter().map(|n|n*n).sum::<f32>()).sqrt().max(0.001);
         let light=0.58+0.42*((-normal[0]*0.4+normal[1]*0.7+normal[2]*0.6)/len).abs();
-        let color=if let Some(tint)=neon {
-            if c==[255,255,255] {Color32::from_rgb(230,255,255)}
-            else if c==[15,22,47] {Color32::from_rgb(tint[0],tint[1],tint[2])}
-            else {Color32::from_rgb((7.0+c[0] as f32*light*0.06) as u8,(10.0+c[1] as f32*light*0.06) as u8,(19.0+c[2] as f32*light*0.06) as u8)}
-        } else {Color32::from_rgb((c[0] as f32*light) as u8,(c[1] as f32*light) as u8,(c[2] as f32*light) as u8)};
+        let color=Color32::from_rgb((c[0] as f32*light) as u8,(c[1] as f32*light) as u8,(c[2] as f32*light) as u8);
         let points=v.map(project);
         p.add(Shape::convex_polygon(points.to_vec(),color,Stroke::NONE));
-        if let Some(tint)=neon {
+        if outline {
             for edge in 0..3 { if edges[edge] {
-                let segment=[points[edge],points[(edge+1)%3]];
-                p.line_segment(segment,Stroke::new(4.0,Color32::from_rgba_unmultiplied(tint[0],tint[1],tint[2],35)));
-                p.line_segment(segment,Stroke::new(1.1,Color32::from_rgb(tint[0],tint[1],tint[2])));
+                p.line_segment([points[edge],points[(edge+1)%3]],Stroke::new(0.8,Color32::from_rgba_unmultiplied(42,49,37,110)));
             } }
         }
     }
@@ -90,23 +84,21 @@ pub fn pet(p:&Painter,rect:Rect,kind:PetKind,time:f32) {
         }
     }
     let bob=(time*2.2).sin()*rect.height()*0.025;
-    draw(p,rect.translate(vec2(0.0,bob)),faces,0.35+(time*0.7).sin()*0.28,rect.width().min(rect.height())*0.32,Some(color));
+    draw(p,rect.translate(vec2(0.0,bob)),faces,0.35+(time*0.7).sin()*0.28,rect.width().min(rect.height())*0.32,true);
 }
 pub fn capsule(p:&Painter,rect:Rect,neon:bool,time:f32,shake:f32) {
-    let tint=if neon {[172,105,250]} else {[100,230,188]};
+    let tint=if neon {[236,166,76]} else {[132,184,94]};
     let mut shell=Vec::new();
     cube(&mut shell,[0.0,-0.91,0.0],[0.92,0.13,0.7],tint);
     for x in [-0.88,0.88] { cube(&mut shell,[x,0.0,0.0],[0.06,0.83,0.52],tint); }
     cube(&mut shell,[0.0,0.88,0.0],[0.94,0.12,0.65],tint);
     let yaw=0.3+(time*0.5).sin()*0.2;
     let scale=rect.width().min(rect.height())*0.38;
-    draw(p,rect,shell,yaw,scale,None);
+    draw(p,rect,shell,yaw,scale,false);
     let mut model=Vec::new();egg(&mut model,[0.0,0.0,0.1],0.72,tint);
     let offset=vec2((time*43.0).sin()*shake,(time*31.0).cos()*shake*0.4);
-    draw(p,rect.translate(offset),model,yaw+(time*35.0).sin()*shake*0.015,scale,None);
-    // Transparent chamber rim and highlight in front of the egg.
-    let glass=rect.shrink2(vec2(rect.width()*0.12,rect.height()*0.12));
-    p.rect_filled(glass,22.0,Color32::from_rgba_unmultiplied(130,219,255,14));
-    p.rect_stroke(glass,22.0,Stroke::new(1.0,Color32::from_rgba_unmultiplied(176,241,255,100)));
-    p.line_segment([glass.left_top()+vec2(12.0,10.0),Pos2::new(glass.left()+12.0,glass.center().y)],Stroke::new(3.0,Color32::from_rgba_unmultiplied(235,255,255,90)));
+    draw(p,rect.translate(offset),model,yaw+(time*35.0).sin()*shake*0.015,scale,false);
+    // Matte housing edges, with no neon glow.
+    let rim=rect.shrink2(vec2(rect.width()*0.12,rect.height()*0.12));
+    p.rect_stroke(rim,3.0,Stroke::new(2.0,Color32::from_rgb(89,108,71)));
 }
