@@ -1,7 +1,17 @@
 use egui::{RichText as T,Rect,vec2,pos2};
 use crate::{game::Game,gui_state::{GuiState,Panel,Modal},amount};
 
-pub fn frame(ctx: &egui::Context)->egui::Frame {let style = ctx.style(); egui::Frame::none().fill(style.visuals.window_fill).stroke(style.visuals.window_stroke).inner_margin(egui::Margin::same(10.0))}
+pub fn frame(ctx: &egui::Context) -> egui::Frame {
+    let style = ctx.style();
+    let fill = if style.visuals.dark_mode { style.visuals.window_fill } else { egui::Color32::from_rgb(249,251,252) };
+    egui::Frame::none().fill(fill).stroke(style.visuals.window_stroke).inner_margin(egui::Margin::same(10.0))
+}
+
+pub fn paint_background(ui: &egui::Ui) {
+    if !ui.visuals().dark_mode {
+        crate::paint_white_aero(ui.painter(), ui.max_rect());
+    }
+}
 pub fn heading(ui:&mut egui::Ui,title:&str)->bool {
     let mut close=false;ui.horizontal(|ui| {ui.label(T::new(title).size(19.0).strong());ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui| {close=ui.button("X").clicked();});});ui.separator();close
 }
@@ -15,6 +25,7 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
         let width=if workspace.width()<600.0 {workspace.width()-16.0} else {(workspace.width()*0.48).clamp(270.0,380.0)};
         let rect=Rect::from_min_max(pos2(workspace.right()-width-8.0,workspace.top()+8.0),workspace.right_bottom()-vec2(8.0,8.0));
         egui::Window::new("profile_panel").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(frame(ctx)).show(ctx,|ui| {
+            paint_background(ui);
             if heading(ui,"Мой профиль") {state.close();}
             ui.horizontal(|ui| {ui.selectable_value(&mut state.profile_stats,false,"Профиль");ui.selectable_value(&mut state.profile_stats,true,"Статистика");});
             egui::ScrollArea::vertical().id_salt("profile_cards").show(ui,|ui| {
@@ -33,6 +44,7 @@ pub fn draw(ctx:&egui::Context,workspace:Rect,game:&mut Game,state:&mut GuiState
         let rect=Rect::from_center_size(workspace.center(),vec2((workspace.width()-28.0).min(560.0),(workspace.height()-24.0).min(470.0)));
         let modal=state.modal;
         egui::Window::new("game_modal").title_bar(false).fixed_rect(rect).resizable(false).collapsible(false).frame(frame(ctx)).show(ctx,|ui| {
+            paint_background(ui);
             if heading(ui,match modal {Modal::Upgrades=>"Улучшения",Modal::Settings=>"Настройки",Modal::Shop=>"Магазин",Modal::None=>""}) {state.close();}
             egui::ScrollArea::vertical().id_salt(("modal_cards",modal==Modal::Upgrades)).show(ui,|ui| {
                 if modal==Modal::Settings {

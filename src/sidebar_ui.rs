@@ -40,6 +40,9 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
     egui::TopBottomPanel::top("portrait_header").exact_height(HEADER).resizable(false)
         .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill).inner_margin(egui::Margin::same(8.0))).show(ctx, |ui| {
         let header_right = ui.max_rect().right();
+        if !ui.visuals().dark_mode {
+            crate::paint_white_aero(ui.painter(), ui.max_rect().expand(8.0));
+        }
         ui.horizontal(|ui| {
             let profile = ui.add_enabled(enabled, egui::Button::new("").min_size(vec2(38.0, 34.0)))
                 .on_hover_text("Профиль");
@@ -92,7 +95,11 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         let strip = Rect::from_min_size(dock.min, vec2(dock.width(), DOCK_ROW));
         let fill = ui.visuals().panel_fill;
         ui.painter().rect_filled(dock, 0.0, crate::theme_color(dark, [213,223,186], [14,15,29]));
-        ui.painter().rect_filled(strip, 0.0, fill);
+        if dark {
+            ui.painter().rect_filled(strip, 0.0, fill);
+        } else {
+            crate::paint_white_aero(ui.painter(), strip);
+        }
 
         let controls = 2.0 * (ARROW + GAP);
         let viewport_width = (strip.width() - 16.0 - controls).max(1.0);
@@ -151,7 +158,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
         let width = (dock.width() - 16.0).max(0.0);
         let pocket = Rect::from_min_size(pos2(dock.center().x - width * 0.5, strip.bottom()), vec2(width, XP_POCKET));
         let painter = ui.painter();
-        painter.rect_filled(pocket, egui::Rounding { nw: 0.0, ne: 0.0, sw: 12.0, se: 12.0 }, fill);
+        painter.rect_filled(pocket, egui::Rounding { nw: 0.0, ne: 0.0, sw: 12.0, se: 12.0 }, if dark { fill } else { C::from_rgb(249,251,252) });
         let track = pocket.shrink2(vec2(5.0, 4.0));
         painter.rect_filled(track, 9.0, crate::theme_color(dark, [46,73,91], [35,40,74]));
         let filled = Rect::from_min_size(track.min, vec2(track.width() * game.level_progress(), track.height()));

@@ -101,6 +101,26 @@ fn theme_color(dark: bool, light: [u8; 3], night: [u8; 3]) -> egui::Color32 {
     egui::Color32::from_rgb(r, g, b)
 }
 
+fn paint_white_aero(painter: &egui::Painter, rect: egui::Rect) {
+    use egui::{Color32, Mesh, Shape, pos2};
+    let mut mesh = Mesh::default();
+    for (position, color) in [
+        (0.0, Color32::WHITE),
+        (0.46, Color32::from_rgb(247, 250, 252)),
+        (0.48, Color32::from_rgb(234, 240, 244)),
+        (1.0, Color32::from_rgb(249, 251, 252)),
+    ] {
+        let y = rect.top() + rect.height() * position;
+        mesh.colored_vertex(pos2(rect.left(), y), color);
+        mesh.colored_vertex(pos2(rect.right(), y), color);
+    }
+    for left in [0, 2, 4] {
+        mesh.add_triangle(left, left + 1, left + 3);
+        mesh.add_triangle(left, left + 3, left + 2);
+    }
+    painter.add(Shape::mesh(mesh));
+}
+
 fn apply_theme(ctx: &egui::Context, dark: bool) {
     let mut visuals = if dark { egui::Visuals::dark() } else { egui::Visuals::light() };
     visuals.panel_fill = theme_color(dark, [246,238,211], [24,23,42]);

@@ -10,6 +10,7 @@ pub fn draw(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut G
     let content_size = sheet.size() - frame.total_margin().sum();
     egui::Window::new("pets_inventory").title_bar(false).fixed_pos(sheet.min).fixed_size(content_size)
         .resizable(false).collapsible(false).frame(frame).show(ctx, |ui| {
+        panels_ui::paint_background(ui);
         if panels_ui::heading(ui, "Питомцы") {
             state.close();
             return;
@@ -206,6 +207,7 @@ fn confirm(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut Gu
     let rect = Rect::from_center_size(workspace.center(), vec2((workspace.width() - 32.0).min(390.0), 128.0));
     egui::Window::new("pet_confirmation").title_bar(false).fixed_rect(rect)
         .resizable(false).collapsible(false).frame(panels_ui::frame(ctx)).show(ctx, |ui| {
+        panels_ui::paint_background(ui);
         ui.heading(message);
         if matches!(action, PetAction::Delete(_) | PetAction::DeleteMany) { ui.label("Действие нельзя отменить."); }
         ui.horizontal(|ui| {
