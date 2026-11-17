@@ -47,7 +47,7 @@ pub fn draw(ctx:&egui::Context,game:&mut Game,state:&mut GuiState) {
                 if response.clicked()&&!game.paused&&game.hatch.is_none() {if state.panel==Panel::Profile {state.close();} else {state.profile(false);}}
                 ui.add_space(4.0);balance(ui,"ДЕНЬГИ",&amount(game.coins),true);ui.add_space(3.0);balance(ui,"РЕБЁРТЫ",&game.rebirths.to_string(),false);
                 ui.label(T::new(format!("Уровень {}",game.level())).size(11.0).strong());
-                ui.add(egui::ProgressBar::new(game.level_progress()).fill(GREEN).text(format!("{}/100 XP",game.taps%100)));
+                ui.add(egui::ProgressBar::new(game.level_progress()).desired_width(ui.available_width()).fill(GREEN).text(format!("{}/100 XP",game.taps%100)));
                 ui.separator();
                 ui.add_enabled_ui(!game.paused&&game.hatch.is_none(),|ui| {
                     ui.vertical_centered(|ui| {

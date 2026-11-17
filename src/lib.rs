@@ -253,9 +253,9 @@ mod layout_tests {
     }
     #[test] fn one_left_sidebar_and_full_height_workspace() {
         for (width,height) in [(640.0,360.0),(800.0,360.0),(960.0,540.0),(1280.0,720.0)] {
-            let ctx=egui::Context::default();let mut game=game::Game::default();let out=render(&ctx,&mut game,width,height);
+            let ctx=egui::Context::default();let mut game=game::Game::default();render(&ctx,&mut game,width,height);let out=render(&ctx,&mut game,width,height);
             let scene=out.shapes.iter().find_map(|s|match &s.shape {egui::Shape::Rect(r) if r.fill==egui::Color32::from_rgb(166,207,224)=>Some(r.rect),_=>None}).expect("workspace");
-            assert!((scene.left()-sidebar_ui::width(width)).abs()<1.0);assert!(scene.top()<1.0);assert!((scene.bottom()-height).abs()<1.0);assert!(scene.right()>=width-1.0);
+            assert!((scene.left()-sidebar_ui::width(width)).abs()<1.0,"scene {scene:?}, expected sidebar {}",sidebar_ui::width(width));assert!(scene.top()<1.0);assert!((scene.bottom()-height).abs()<1.0);assert!(scene.right()>=width-1.0);
             assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Mesh(m) if m.vertices.len()>256)),"button information should be face geometry");
             assert!(!out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="8×8"||t.galley.job.text=="32×32")),"map modes must be absent");
         }
@@ -264,7 +264,7 @@ mod layout_tests {
         let ctx=egui::Context::default();let mut g=game::Game::default();let mut state=gui_state::GuiState::default();state.profile(true);state.store(&ctx);
         render(&ctx,&mut g,960.0,720.0);assert!(g.interface_open);assert!(!g.pets_open);
         state.pets();state.store(&ctx);g.pets=vec![game::PetKind::Cat,game::PetKind::Cat,game::PetKind::Cat];
-        let out=render(&ctx,&mut g,960.0,720.0);assert!(g.pets_open);assert!(g.interface_open);
+        render(&ctx,&mut g,960.0,720.0);let out=render(&ctx,&mut g,960.0,720.0);assert!(g.pets_open);assert!(g.interface_open);
         assert!(out.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Удалить")));
     }
 }
