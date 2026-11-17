@@ -1,6 +1,6 @@
 # Button Sim
 
-Landscape Android clicker with one scrollable left sidebar, contextual profile/pet frames, centered upgrade/rebirth dialogs, and a vertical field of 3D switches with face-mounted information.
+Portrait Android clicker with a scrollable currency header, a bottom dock with pill-shaped navigation buttons, and a vertical field of 3D switches.
 
 Download **button-sim-release.apk** from [latest-apk](https://github.com/dozyFJ/Button-sim/releases/tag/latest-apk).
 Install the native OTA shell once, then use **Pause → Обновить игру (OTA)** to download compatible game cores and restart.
