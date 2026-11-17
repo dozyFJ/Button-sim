@@ -1,10 +1,15 @@
 //! Perspective ground field. Scroll moves the view along the board, not a list of flat buttons.
 use egui::{Color32 as C, RichText as T, Rect, Stroke, Sense, Align2, FontId, Shape, pos2, vec2};
-use crate::game::{Game,Tab};
+use crate::game::Game;
 
 pub fn show(ui:&mut egui::Ui,game:&mut Game) {
     let mut focus=false;
-    ui.horizontal_wrapped(|ui| {
+    let controls_origin=ui.max_rect().left_top()+vec2(8.0,6.0);
+    egui::Area::new(egui::Id::new("field_controls")).fixed_pos(controls_origin).order(egui::Order::Foreground).movable(false).show(ui.ctx(),|ui| {
+        ui.set_max_width((ui.ctx().screen_rect().width()-24.0).max(250.0));
+        ui.add_enabled_ui(!game.paused&&!game.pets_open&&game.hatch.is_none(),|ui| {
+        egui::Frame::none().fill(C::from_rgb(246,238,211)).inner_margin(egui::Margin::same(5.0)).show(ui,|ui| {
+        ui.horizontal_wrapped(|ui| {
         ui.label(T::new("ПОЛЕ КНОПОК").size(14.0).strong());
         for size in [8,32] {
             if ui.selectable_label(game.grid_size==size,format!("{size}×{size}")).clicked() {game.set_grid_size(size);}
@@ -12,11 +17,14 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
         ui.label(T::new(format!("×{} · цель №{}",game.multiplier,game.selected_switch+1)).color(C::from_rgb(42,83,40)));
         focus=ui.button("К цели").clicked();
     });
+        });
+        });
+    });
     let columns=game.grid_size;
-    let height=(ui.available_height()-20.0).max(80.0);
+    let height=ui.available_height().max(80.0);
     let bias=if ui.available_width()>ui.available_height()*1.3 {3.5} else {1.5};
     let world=vec2(columns as f32*110.0,columns as f32*110.0);
-    let mut scroll=egui::ScrollArea::both().id_salt(("ground_field",columns)).auto_shrink([false,false]).max_height(height);
+    let mut scroll=egui::ScrollArea::both().id_salt(("ground_field",columns)).auto_shrink([false,false]).max_height(height).scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
     if focus {
         scroll=scroll.scroll_offset(vec2(((game.selected_switch%columns) as f32-bias).max(0.0)*110.0,(game.selected_switch/columns) as f32*110.0));
     }
@@ -87,6 +95,5 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
             crate::pet_ui::attack_scene(&p,stage,center,scale*0.82,game);
         }
     });
-    if game.tab==Tab::Home {ui.label(T::new("Тяни поле в стороны и вперёд · первые 5 кнопок открыты").size(10.0).color(C::from_rgb(60,86,50)));}
 }
 

@@ -176,7 +176,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game, update_error: Option<&str>) ->
             });
         });
 
-    egui::CentralPanel::default().frame(egui::Frame::none().fill(C::from_rgb(166, 207, 224)).inner_margin(egui::Margin::same(10.0)))
+    egui::CentralPanel::default().frame(egui::Frame::none().fill(C::from_rgb(166, 207, 224)).inner_margin(egui::Margin::same(if game.tab == game::Tab::Home {0.0} else {10.0})))
         .show(ctx, |ui| {
             ui.visuals_mut().override_text_color = Some(navy);
             ui.add_enabled_ui(!blocked && !game.paused, |ui| {
