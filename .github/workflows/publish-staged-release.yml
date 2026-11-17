@@ -11,6 +11,7 @@ on:
         type: string
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: button-sim-release-ota
   cancel-in-progress: false
