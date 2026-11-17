@@ -3,8 +3,8 @@ use egui::{Align2, Color32 as C, FontId, RichText as T, Sense, vec2};
 use crate::{amount, game::{Game, Tab}, gui_state::{GuiState, Modal, Panel}, nav_icon};
 
 const GREEN: C = C::from_rgb(93, 161, 71);
-pub const HEADER: f32 = 92.0;
-pub const DOCK: f32 = 74.0;
+pub const HEADER: f32 = 54.0;
+pub const DOCK: f32 = 106.0;
 const TILE: f32 = 54.0;
 const GAP: f32 = 5.0;
 const NAV_ITEMS: usize = 7;
@@ -51,7 +51,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             if profile.clicked() {
                 if state.panel == Panel::Profile { state.close(); } else { state.profile(false); }
             }
-            let currency_width = (ui.available_width() - 46.0).max(0.0);
+            let currency_width = (ui.available_width() - 86.0).max(0.0);
             egui::ScrollArea::horizontal().id_salt("header_currencies").max_width(currency_width)
                 .auto_shrink([false, true]).scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                 .show(ui, |ui| {
@@ -89,19 +89,6 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                 }
             }
             if pause.clicked() { game.paused = !game.paused; }
-        });
-        ui.horizontal(|ui| {
-            let xp = format!("Уровень {}  ·  {} / 100 XP", game.level(), game.taps % 100);
-            let width = (ui.available_width() - 44.0).max(0.0);
-            let (pocket, _) = ui.allocate_exact_size(vec2(width, 30.0), Sense::hover());
-            let dark = ui.visuals().dark_mode;
-            let painter = ui.painter();
-            painter.rect_filled(pocket, 8.0, crate::theme_color(dark, [230,233,207], [37,49,43]));
-            painter.text(pocket.center() - vec2(0.0, 4.0), Align2::CENTER_CENTER, xp, FontId::proportional(12.0), ui.visuals().text_color());
-            let track = egui::Rect::from_min_size(pocket.left_bottom() + vec2(8.0,-8.0), vec2((width-16.0).max(0.0), 3.0));
-            painter.rect_filled(track, 1.5, crate::theme_color(dark, [197,209,177], [58,74,65]));
-            let filled = egui::Rect::from_min_size(track.min, vec2(track.width()*game.level_progress(), track.height()));
-            painter.rect_filled(filled, 1.5, GREEN);
             let stats = ui.add_enabled(enabled, egui::Button::new("").min_size(vec2(36.0, 26.0)))
                 .on_hover_text("Статистика");
             nav_icon(ui.painter(), stats.rect.center(), 3, ui.style().interact(&stats).fg_stroke.color);
@@ -139,6 +126,19 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
                 state.sidebar_scroll=out.state.offset.x;state.sidebar_max=(out.content_size.x-out.inner_rect.width()).max(0.0);
             });
             if ui.add_enabled(state.sidebar_scroll<state.sidebar_max,egui::Button::new("›").min_size(vec2(ARROW,TILE))).clicked() {state.sidebar_scroll=(state.sidebar_scroll+step).min(state.sidebar_max);}
+        });
+        ui.vertical_centered(|ui| {
+            let xp = format!("Уровень {}  ·  {} / 100 XP", game.level(), game.taps % 100);
+            let width = (ui.available_width() * 0.62).clamp(130.0, 230.0);
+            let (pocket, _) = ui.allocate_exact_size(vec2(width, 30.0), Sense::hover());
+            let dark = ui.visuals().dark_mode;
+            let painter = ui.painter();
+            painter.rect_filled(pocket, 11.0, crate::theme_color(dark, [230,233,207], [37,49,43]));
+            painter.text(pocket.center() - vec2(0.0, 4.0), Align2::CENTER_CENTER, xp, FontId::proportional(12.0), ui.visuals().text_color());
+            let track = egui::Rect::from_min_size(pocket.left_bottom() + vec2(8.0,-8.0), vec2((width-16.0).max(0.0), 3.0));
+            painter.rect_filled(track, 1.5, crate::theme_color(dark, [197,209,177], [58,74,65]));
+            let filled = egui::Rect::from_min_size(track.min, vec2(track.width()*game.level_progress(), track.height()));
+            painter.rect_filled(filled, 1.5, GREEN);
         });
     });
 }
