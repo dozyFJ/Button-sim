@@ -1,5 +1,8 @@
 name: Publish verified staged release
 on:
+  push:
+    branches: [main]
+    paths: [release-staging.json]
   workflow_dispatch:
     inputs:
       config_blob:
@@ -40,5 +43,6 @@ jobs:
         run: |
           gh release upload latest-apk build/button-sim-release.apk --clobber
           gh release upload game-ota build/game-ota/game-runtime.zip build/game-ota/game-ota.sig build/game-ota/game-ota.json --clobber
+          gh release edit latest-apk --title "Button Sim Release" --notes "Verified release and OTA core: $PUBLISHED_CORE_REVISION. Compatible updates: Pause → Обновить игру (OTA)."
           gh release edit game-ota --notes "Signed native core: $PUBLISHED_CORE_REVISION. Pause → Обновить игру (OTA)."
 

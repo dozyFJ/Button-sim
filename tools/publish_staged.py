@@ -12,7 +12,9 @@ def blob(sha):
     if data.get("encoding")!="base64":raise ValueError("Invalid encoding")
     return base64.b64decode(data["content"])
 def main():
-    config=json.loads(blob(os.environ["RELEASE_CONFIG_BLOB"]))
+    reference=os.environ.get("RELEASE_CONFIG_BLOB","")
+    if not reference:reference=json.loads(pathlib.Path("release-staging.json").read_text())["config_blob"]
+    config=json.loads(blob(reference))
     if not re.fullmatch(r"[0-9a-f]{40}",config["revision"]):raise ValueError("Invalid revision")
     cert=base64.b64decode(config["certificate"])
     if hashlib.sha256(cert).hexdigest()!=FINGERPRINT:raise ValueError("Unexpected signer")

@@ -2,6 +2,7 @@ name: Button Sim release and OTA
 on:
   push:
     branches: [main]
+    paths-ignore: [release-staging.json, .github/workflows/publish-staged-release.yml, tools/publish_staged.py]
   workflow_dispatch:
 permissions:
   contents: write
