@@ -39,6 +39,7 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
     let enabled = !game.paused && game.hatch.is_none();
     egui::TopBottomPanel::top("portrait_header").exact_height(HEADER).resizable(false)
         .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill).inner_margin(egui::Margin::same(8.0))).show(ctx, |ui| {
+        let header_right = ui.max_rect().right();
         ui.horizontal(|ui| {
             let profile = ui.add_enabled(enabled, egui::Button::new("").min_size(vec2(38.0, 34.0)))
                 .on_hover_text("Профиль");
@@ -53,14 +54,21 @@ pub fn draw(ctx: &egui::Context, game: &mut Game, state: &mut GuiState) {
             if profile.clicked() {
                 if state.panel == Panel::Profile { state.close(); } else { state.profile(false); }
             }
-            let currency_width = (ui.available_width() - 38.0 - ui.spacing().item_spacing.x).max(0.0);
-            let (balance, _) = ui.allocate_exact_size(vec2(currency_width, 34.0), Sense::hover());
-            ui.painter().with_clip_rect(balance).text(
-                balance.center(), Align2::CENTER_CENTER, format!("$ {}", amount(game.coins)),
-                FontId::proportional(19.0), ui.visuals().text_color(),
-            );
-            let pause = ui.add(egui::Button::new("").min_size(vec2(38.0, 34.0)))
+            let pause_rect = Rect::from_min_size(pos2(header_right - 38.0, profile.rect.top()), vec2(38.0, 34.0));
+            let pause = ui.put(pause_rect, egui::Button::new("").min_size(pause_rect.size()))
                 .on_hover_text(if game.paused { "Продолжить" } else { "Пауза" });
+
+            let balance_left = profile.rect.right() + 6.0;
+            let max_width = (pause_rect.left() - balance_left - 6.0).max(0.0);
+            let painter = ui.painter();
+            let text = format!("$ {}", amount(game.coins));
+            let color = ui.visuals().text_color();
+            let measured = painter.layout_no_wrap(text.clone(), FontId::proportional(19.0), color);
+            let width = (measured.size().x + 22.0).max(68.0).min(max_width);
+            let font_size = 19.0 * ((width - 16.0).max(0.0) / measured.size().x).min(1.0);
+            let balance = Rect::from_min_size(pos2(balance_left, profile.rect.top()), vec2(width, 34.0));
+            painter.rect_filled(balance, 8.0, crate::theme_color(ui.visuals().dark_mode, [230,233,207], [53,45,93]));
+            painter.text(balance.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, text, FontId::proportional(font_size), color);
             let center = pause.rect.center();
             let color = ui.style().interact(&pause).fg_stroke.color;
             if game.paused {

@@ -319,6 +319,26 @@ mod layout_tests {
             assert!((xp.center().x - width * 0.5).abs() < 2.0);
         }
     }
+    #[test]
+    fn balance_is_visible_next_to_profile_at_phone_widths() {
+        for dark in [false, true] {
+            for width in [280.0, 360.0, 540.0] {
+                let ctx = egui::Context::default();
+                let mut game = game::Game::default();
+                game.coins = 11_400_000.0;
+                game.dark_mode = dark;
+                render(&ctx, &mut game, width, 740.0);
+                let output = render(&ctx, &mut game, width, 740.0);
+                let (balance, clip) = output.shapes.iter().find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) if text.galley.job.text == format!("$ {}", amount(game.coins)) =>
+                        Some((egui::Rect::from_min_size(text.pos, text.galley.size()), shape.clip_rect)),
+                    _ => None,
+                }).expect("balance in header");
+                assert!(balance.left() >= 46.0 && balance.left() < 75.0, "{balance:?}");
+                assert!(balance.bottom() < sidebar_ui::HEADER && clip.contains_rect(balance), "{balance:?}, {clip:?}");
+            }
+        }
+    }
     #[test] fn profile_and_inventory_are_context_frames_to_the_right_of_navigation() {
         let ctx=egui::Context::default();let mut g=game::Game::default();let mut state=gui_state::GuiState::default();state.profile(true);state.store(&ctx);
         render(&ctx,&mut g,960.0,720.0);assert!(g.interface_open);assert!(!g.pets_open);
