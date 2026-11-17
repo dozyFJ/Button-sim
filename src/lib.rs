@@ -1,5 +1,7 @@
 //! Button Sim — WolfCraft Rust/wgpu-based portrait clicker.
 pub mod game;
+mod pet_render;
+mod pet_ui;
 
 use std::{sync::Arc, time::Instant};
 use winit::{application::ApplicationHandler, event::WindowEvent, event_loop::{ActiveEventLoop, EventLoop}, window::{Window, WindowId}};
@@ -18,8 +20,27 @@ struct App {
     gfx: Option<Graphics>,
     game: game::Game,
     last_tick: Option<Instant>,
+    save_path: Option<std::path::PathBuf>,
+    last_save: Option<Instant>,
 }
 
+fn save_game(game: &game::Game, path: Option<&std::path::Path>) {
+    let Some(path) = path else { return; };
+    let result = (|| -> std::io::Result<()> {
+        if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
+        let temp = path.with_extension("tmp");
+        std::fs::write(&temp, game.save_text())?;
+        std::fs::rename(temp, path)?;
+        Ok(())
+    })();
+    if let Err(error) = result { log::warn!("Cannot save Button Sim: {error}"); }
+}
+impl App {
+    fn with_save_path(path: std::path::PathBuf) -> Self {
+        let game = std::fs::read_to_string(&path).ok().and_then(|text| game::Game::from_save(&text)).unwrap_or_default();
+        Self { game, save_path: Some(path), ..Self::default() }
+    }
+}
 
 fn amount(n: f64) -> String {
     if n >= 1_000_000_000.0 { format!("{:.1}B", n / 1_000_000_000.0) }
@@ -81,11 +102,13 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
     let green = C::from_rgb(133, 255, 209);
     let width = ctx.screen_rect().width();
     let was_paused = game.paused;
+    let blocked = was_paused || game.hatch.is_some() || game.pets_open;
     egui::TopBottomPanel::top("profile_header")
         .frame(egui::Frame::none().fill(navy).inner_margin(egui::Margin::same(12.0)))
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 108.0), Sense::hover());
             let p = ui.painter();
+            aero_card(p, r.expand2(vec2(5.0, 5.0)), gold);
             let avatar = pos2(r.left() + 42.0, r.top() + 24.0);
             for radius in [29.0, 26.0, 23.0] {
                 p.circle_stroke(avatar, radius, Stroke::new(2.0, C::from_rgba_unmultiplied(80, 225, 255, 25)));
@@ -95,31 +118,35 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
             p.circle_filled(avatar + vec2(0.0, -5.0), 7.0, C::from_rgb(217, 232, 249));
             p.rect_filled(Rect::from_center_size(avatar + vec2(0.0, 10.0), vec2(23.0, 12.0)), 6.0, C::from_rgb(217, 232, 249));
             p.text(pos2(r.left() + 42.0, r.top() + 59.0), Align2::CENTER_CENTER, game.rank(), FontId::proportional(11.0), gold);
-            let bar = Rect::from_min_size(pos2(r.left(), r.top() + 73.0), vec2(84.0, 9.0));
-            p.rect_filled(bar, 4.0, C::from_rgb(43, 62, 91));
-            if game.level_progress() > 0.0 {
-                p.rect_filled(Rect::from_min_size(bar.min, vec2(bar.width() * game.level_progress(), bar.height())), 4.0, green);
-            }
-            p.text(pos2(r.left() + 42.0, r.top() + 97.0), Align2::CENTER_CENTER, format!("Ур. {} · {}/100", game.level(), game.taps % 100), FontId::proportional(10.0), muted);
-            let card = Rect::from_min_max(pos2(r.left() + 98.0, r.top() + 8.0), pos2(r.right() - 53.0, r.top() + 99.0));
-            aero_card(p, card, gold);
-            p.text(pos2(card.center().x, card.top() + 17.0), Align2::CENTER_CENTER, "МОНЕТЫ", FontId::proportional(11.0), gold);
-            p.text(card.center() - vec2(0.0, 1.0), Align2::CENTER_CENTER, amount(game.coins), FontId::proportional(24.0), C::WHITE);
-            p.text(pos2(card.center().x, card.bottom() - 23.0), Align2::CENTER_CENTER, format!("+{} / сек", amount(game.coins_per_second())), FontId::proportional(12.0), green);
-            // Only coins exist in the economy. The single page indicator reflects that.
-            p.circle_filled(pos2(card.center().x, card.bottom() - 9.0), 2.5, gold);
+            let card = Rect::from_min_max(pos2(r.left() + 98.0, r.top() + 4.0), pos2(r.right() - 53.0, r.top() + 65.0));
+            p.rect_filled(card, 12.0, C::from_rgba_unmultiplied(14, 29, 57, 150));
+            p.text(pos2(card.center().x, card.top() + 12.0), Align2::CENTER_CENTER, "ДЕНЬГИ", FontId::proportional(10.0), gold);
+            p.text(pos2(card.center().x, card.top() + 33.0), Align2::CENTER_CENTER, amount(game.coins), FontId::proportional(22.0), C::WHITE);
+            p.text(pos2(card.center().x, card.bottom() - 9.0), Align2::CENTER_CENTER, format!("+{} / сек", amount(game.coins_per_second())), FontId::proportional(10.0), green);
+            let rebirth_card = Rect::from_min_max(pos2(card.left(), r.top() + 72.0), pos2(card.right(), r.top() + 102.0));
+            p.rect_filled(rebirth_card, 10.0, C::from_rgba_unmultiplied(155, 88, 233, 35));
+            p.text(rebirth_card.center(), Align2::CENTER_CENTER, format!("РЕБЁРТЫ  ·  {}", game.rebirths), FontId::proportional(12.0), C::from_rgb(225, 178, 255));
             let pause = Rect::from_min_size(pos2(r.right() - 42.0, r.top() + 10.0), vec2(42.0, 42.0));
-            aero_card(p, pause, C::from_rgb(192, 138, 255));
+            p.rect_filled(pause, 12.0, C::from_rgba_unmultiplied(150, 105, 255, 35));
             for x in [-5.0, 5.0] {
                 p.rect_filled(Rect::from_center_size(pause.center() + vec2(x, 0.0), vec2(4.0, 16.0)), 1.0, gold);
             }
             if ui.interact(pause, ui.id().with("pause"), Sense::click()).clicked() { game.paused = !game.paused; }
         });
 
-    egui::TopBottomPanel::bottom("navigation")
+    egui::TopBottomPanel::bottom("navigation").exact_height(116.0)
         .frame(egui::Frame::none().fill(navy).inner_margin(egui::Margin::same(8.0)))
         .show(ctx, |ui| {
-            ui.add_enabled_ui(!was_paused && !game.paused, |ui| {
+            aero_card(ui.painter(), ui.max_rect().shrink(1.0), gold);
+            let (level_rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::hover());
+            let bar = Rect::from_min_size(level_rect.left_top() + vec2(10.0, 14.0), vec2(level_rect.width() - 20.0, 6.0));
+            ui.painter().rect_filled(bar, 3.0, C::from_rgb(35, 49, 77));
+            if game.level_progress() > 0.0 {
+                ui.painter().rect_filled(Rect::from_min_size(bar.min, vec2(bar.width() * game.level_progress(), 6.0)), 3.0, gold);
+            }
+            ui.painter().text(level_rect.left_top() + vec2(10.0, 6.0), Align2::LEFT_CENTER, format!("УРОВЕНЬ {}", game.level()), FontId::proportional(10.0), C::WHITE);
+            ui.painter().text(level_rect.right_top() + vec2(-10.0, 6.0), Align2::RIGHT_CENTER, format!("{} / 100 XP", game.taps % 100), FontId::proportional(10.0), gold);
+            ui.add_enabled_ui(!blocked && !game.paused, |ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 ui.columns(5, |cols| {
                     for (i, (label, tab)) in [
@@ -133,7 +160,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                         let (rect, response) = col.allocate_exact_size(vec2(col.available_width(), 68.0), Sense::click());
                         let active = game.tab == tab;
                         let p = col.painter();
-                        aero_card(p, rect.shrink(2.0), if active { gold } else { C::from_rgb(65, 87, 130) });
+                        if active { p.rect_filled(rect.shrink(3.0), 12.0, C::from_rgba_unmultiplied(98, 226, 255, 30)); }
                         if active { p.rect_filled(Rect::from_min_size(rect.min + vec2(12.0, 0.0), vec2((rect.width() - 24.0).max(4.0), 3.0)), 2.0, gold); }
                         nav_icon(p, rect.center() - vec2(0.0, 10.0), i, if active { gold } else { muted });
                         p.text(pos2(rect.center().x, rect.bottom() - 15.0), Align2::CENTER_CENTER, label, FontId::proportional(if width < 370.0 { 9.0 } else { 11.0 }), if active { C::WHITE } else { muted });
@@ -160,7 +187,7 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                 p.line_segment([pos2(scene.left(), y), pos2(scene.right(), y)], Stroke::new(1.0, C::from_rgba_unmultiplied(88, 169, 255, 12)));
             }
             ui.visuals_mut().override_text_color = Some(C::WHITE);
-            ui.add_enabled_ui(!was_paused && !game.paused, |ui| {
+            ui.add_enabled_ui(!blocked && !game.paused, |ui| {
                 egui::ScrollArea::vertical().id_salt("scene_scroll").show(ui, |ui| {
                     ui.set_min_width(ui.available_width());
                     ui.vertical_centered(|ui| {
@@ -193,21 +220,14 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                 if response.clicked() { game.tap(); }
                                 ui.add_space(22.0);
                                 ui.label(T::new(format!("Бонус ребёртов ×{}", amount(game.rebirth_bonus()))).color(green));
+                                if let Some(pet) = game.active_pet() {
+                                    let (r, _) = ui.allocate_exact_size(vec2(110.0, 110.0), Sense::hover());
+                                    pet_render::pet(ui.painter(), r, pet, game.played_seconds as f32);
+                                    ui.label(T::new(format!("{} · доход ×{:.1}", pet.name(), pet.bonus())).color(gold));
+                                }
+                                ui.add_space(60.0);
                             }
-                            game::Tab::Capsules => {
-                                ui.heading("Капсулы");
-                                ui.label(T::new("Коллекция питомцев").color(muted));
-                                ui.add_space(30.0);
-                                let (r, _) = ui.allocate_exact_size(vec2(150.0, 190.0), Sense::hover());
-                                let p = ui.painter();
-                                p.rect_filled(r.shrink(12.0), 60.0, C::from_rgb(72, 110, 164));
-                                p.rect_filled(Rect::from_min_max(pos2(r.left()+12.0, r.center().y), r.right_bottom()-vec2(12.0,12.0)), 35.0, gold);
-                                p.circle_filled(r.center(), 24.0, navy);
-                                p.text(r.center(), Align2::CENTER_CENTER, "?", FontId::proportional(29.0), gold);
-                                ui.add_space(24.0);
-                                ui.label("Капсулы ещё не доступны");
-                                ui.label(T::new("Открытие и питомцы появятся позже").size(12.0).color(muted));
-                            }
+                            game::Tab::Capsules => { pet_ui::shop(ui, game); }
                             game::Tab::Upgrades => {
                                 ui.heading("Улучшения");
                                 ui.add_space(20.0);
@@ -215,19 +235,21 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                 ui.label(format!("Базовый доход: {} / сек", amount(game.base_income)));
                                 ui.add_space(18.0);
                                 let can_buy = game.coins >= game.upgrade_price();
-                                if ui.add_enabled(can_buy, egui::Button::new(T::new(format!("Улучшить · {} монет", amount(game.upgrade_price()))).color(navy).strong()).fill(gold).rounding(12.0).min_size(vec2(ui.available_width().min(340.0), 58.0))).clicked() { game.upgrade(); }
-                                if !can_buy { ui.label(T::new("Накопи монеты для улучшения").color(muted)); }
+                                if ui.add_enabled(can_buy, egui::Button::new(T::new(format!("Улучшить · {} денег", amount(game.upgrade_price()))).color(navy).strong()).fill(gold).rounding(12.0).min_size(vec2(ui.available_width().min(340.0), 58.0))).clicked() { game.upgrade(); }
+                                if !can_buy { ui.label(T::new("Накопи денегы для улучшения").color(muted)); }
                             }
                             game::Tab::Statistics => {
                                 ui.heading("Статистика");
                                 ui.add_space(22.0);
                                 for (label, value) in [
                                     ("Нажатия", game.taps.to_string()),
-                                    ("Заработано монет", amount(game.total_earned)),
+                                    ("Заработано денег", amount(game.total_earned)),
                                     ("Доход в секунду", amount(game.coins_per_second())),
                                     ("Уровень", game.level().to_string()),
                                     ("Ранг", game.rank().to_owned()),
                                     ("Ребёрты", game.rebirths.to_string()),
+                                    ("Питомцы", game.pets.len().to_string()),
+                                    ("Бонус питомца", format!("×{:.1}", game.pet_bonus())),
                                     ("Время в игре", format!("{} мин", (game.played_seconds / 60.0) as u64)),
                                 ] {
                                     egui::Frame::none().fill(panel).stroke(Stroke::new(1.0, C::from_rgb(55, 100, 136))).rounding(10.0).inner_margin(egui::Margin::same(14.0)).show(ui, |ui| {
@@ -246,17 +268,18 @@ fn ui(ctx: &egui::Context, game: &mut game::Game) {
                                 ui.label(T::new(format!("Постоянный бонус ×{}", amount(game.rebirth_bonus()))).size(23.0).color(green));
                                 ui.add_space(12.0);
                                 ui.label("Начни заново с удвоенным доходом.");
-                                ui.label(T::new("Монеты, множитель и улучшения сбросятся.\nУровень, ранг и статистика останутся.").size(13.0).color(muted));
+                                ui.label(T::new("Деньги, множитель и улучшения сбросятся.\nУровень, ранг и статистика останутся.").size(13.0).color(muted));
                                 ui.add_space(24.0);
                                 let can_buy = game.coins >= game.rebirth_price();
-                                if ui.add_enabled(can_buy, egui::Button::new(T::new(format!("Ребёрт · {} монет", amount(game.rebirth_price()))).color(navy).strong()).fill(gold).rounding(12.0).min_size(vec2(ui.available_width().min(340.0), 58.0))).clicked() { game.rebirth(); }
-                                if !can_buy { ui.label(T::new(format!("Не хватает {} монет", amount(game.rebirth_price() - game.coins))).color(muted)); }
+                                if ui.add_enabled(can_buy, egui::Button::new(T::new(format!("Ребёрт · {} денег", amount(game.rebirth_price()))).color(navy).strong()).fill(gold).rounding(12.0).min_size(vec2(ui.available_width().min(340.0), 58.0))).clicked() { game.rebirth(); }
+                                if !can_buy { ui.label(T::new(format!("Не хватает {} денег", amount(game.rebirth_price() - game.coins))).color(muted)); }
                             }
                         }
                     });
                 });
             });
         });
+    pet_ui::overlays(ctx, game);
     if game.paused {
         egui::Window::new("Пауза").anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
             .collapsible(false).resizable(false).default_width((width - 64.0).min(310.0))
@@ -288,7 +311,7 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
-        if matches!(event, WindowEvent::CloseRequested) { event_loop.exit(); return; }
+        if matches!(event, WindowEvent::CloseRequested) { save_game(&self.game, self.save_path.as_deref()); event_loop.exit(); return; }
         let Some(g) = self.gfx.as_mut() else { return };
         let response = g.state.on_window_event(&g.gpu.window, &event);
         match event {
@@ -297,8 +320,14 @@ impl ApplicationHandler for App {
                 let now = Instant::now();
                 let dt = now.duration_since(self.last_tick.replace(now).unwrap_or(now)).as_secs_f64().min(0.25);
                 self.game.tick(dt);
+                let before = (self.game.pets.len(), self.game.equipped_pet, self.game.upgrades, self.game.rebirths);
                 let input = g.state.take_egui_input(&g.gpu.window);
                 let output = g.egui.run(input, |ctx| ui(ctx, &mut self.game));
+                let after = (self.game.pets.len(), self.game.equipped_pet, self.game.upgrades, self.game.rebirths);
+                if before != after || self.last_save.map(|t| now.duration_since(t).as_secs() >= 5).unwrap_or(true) {
+                    save_game(&self.game, self.save_path.as_deref());
+                    self.last_save = Some(now);
+                }
                 g.state.handle_platform_output(&g.gpu.window, output.platform_output);
                 let size = g.gpu.window.inner_size();
                 if size.width == 0 || size.height == 0 { return; }
@@ -332,12 +361,15 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn suspended(&mut self, _: &ActiveEventLoop) { self.gfx = None; }
+    fn suspended(&mut self, _: &ActiveEventLoop) { save_game(&self.game, self.save_path.as_deref()); self.gfx = None; self.last_tick = None; }
 }
 
 pub fn run_desktop() {
     let event_loop = EventLoop::new().expect("event loop");
-    let mut app = App::default();
+    let root = std::env::var_os("XDG_DATA_HOME").map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|p| std::path::PathBuf::from(p).join(".local/share")))
+        .unwrap_or_else(std::env::temp_dir);
+    let mut app = App::with_save_path(root.join("button-sim/save.txt"));
     event_loop.run_app(&mut app).expect("application loop");
 }
 
@@ -346,7 +378,8 @@ pub fn run_desktop() {
 fn android_main(android_app: winit::platform::android::activity::AndroidApp) {
     use winit::{event_loop::EventLoopBuilder, platform::android::EventLoopBuilderExtAndroid};
     android_logger::init_once(android_logger::Config::default().with_max_level(log::LevelFilter::Info));
+    let save_path = android_app.internal_data_path().unwrap_or_else(std::env::temp_dir).join("button-sim-save.txt");
     let event_loop = EventLoopBuilder::default().with_android_app(android_app).build().expect("android event loop");
-    let mut app = App::default();
+    let mut app = App::with_save_path(save_path);
     event_loop.run_app(&mut app).expect("application loop");
 }
