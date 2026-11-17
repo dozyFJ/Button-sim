@@ -19,9 +19,34 @@ pub fn show(ui:&mut egui::Ui,game:&mut Game) {
                 let t=ui.ctx().animate_bool_with_time(ui.id().with(("switch",index)),game.switches[index],0.16);
                 let tilt=(t-0.5)*8.0;
                 let face=[r.left_top()+vec2(9.0,8.0+tilt),r.right_top()+vec2(-9.0,8.0+tilt),r.right_bottom()+vec2(-4.0,-16.0-tilt),r.left_bottom()+vec2(4.0,-16.0-tilt)];
-                let shadow=face.map(|v|v+vec2(3.0,6.0));p.add(Shape::convex_polygon(shadow.to_vec(),C::from_rgba_unmultiplied(43,67,31,60),Stroke::NONE));
-                p.add(Shape::convex_polygon(vec![face[2],face[3],face[3]+vec2(0.0,8.0),face[2]+vec2(0.0,8.0)],crate::theme_color(dark, [125,116,85], [12,19,17]),Stroke::NONE));
-                p.add(Shape::convex_polygon(face.to_vec(),if !unlocked {crate::theme_color(dark, [165,170,150], [42,49,47])} else if game.switches[index] {crate::theme_color(dark, [140,191,105], [36,91,64])} else {crate::theme_color(dark, [231,190,119], [53,58,46])},Stroke::new(if selected {3.0_f32} else {1.0_f32},if selected {C::from_rgb(230,148,36)} else {crate::theme_color(dark, [104,119,76], [94,110,97])})));
+                let depth = vec2(3.0, 8.0);
+                let shadow = face.map(|point| point + depth + vec2(2.0, 2.0));
+                p.add(Shape::convex_polygon(shadow.to_vec(), C::from_black_alpha(38), Stroke::NONE));
+                p.add(Shape::convex_polygon(
+                    vec![face[2], face[3], face[3] + depth, face[2] + depth],
+                    crate::theme_color(dark, [125,116,85], [17,26,22]),
+                    Stroke::NONE,
+                ));
+                p.add(Shape::convex_polygon(
+                    vec![face[1], face[2], face[2] + depth, face[1] + depth],
+                    crate::theme_color(dark, [150,132,90], [29,42,34]),
+                    Stroke::NONE,
+                ));
+                let fill = if !unlocked {
+                    crate::theme_color(dark, [165,170,150], [42,49,47])
+                } else if game.switches[index] {
+                    crate::theme_color(dark, [140,191,105], [36,91,64])
+                } else {
+                    crate::theme_color(dark, [231,190,119], [53,58,46])
+                };
+                let border = if selected { C::from_rgb(230,148,36) } else {
+                    crate::theme_color(dark, [104,119,76], [94,110,97])
+                };
+                p.add(Shape::convex_polygon(face.to_vec(), fill, Stroke::new(if selected { 3.0 } else { 1.0 }, border)));
+                let highlight = C::from_white_alpha(if dark { 52 } else { 92 });
+                for (y, width) in [(0.0, 13.0), (3.0, 7.0), (6.0, 3.0)] {
+                    p.rect_filled(Rect::from_min_size(face[0] + vec2(5.0, 5.0 + y), vec2(width, 3.0)), 0.0, highlight);
+                }
                 crate::surface_gui::paint(p,face,&[format!("#{}",index+1),"ЦЕНА 0".into(),"НАГР +1".into(),format!("УР {}",Game::switch_required_level(index)),format!("Р {}",Game::switch_rarity(index))],crate::theme_color(dark, [45,62,38], [232,239,230]));
                 if response.clicked() {game.tap_switch(index);}
                 if selected&&!game.equipped_pets.is_empty() {
