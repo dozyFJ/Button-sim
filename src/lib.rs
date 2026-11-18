@@ -496,7 +496,7 @@ mod layout_tests {
         let rarity = label("Эпический · тир");
         let xp = label("Ур. 1");
         let collection = label("Инвентарь 1/1000");
-        assert!(xp.x < collection.x && rarity.x < collection.x && xp.y > rarity.y, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
+        assert!(xp.x < collection.x && rarity.x < collection.x && xp.y > rarity.y && collection.y > 500.0, "xp={xp:?}, rarity={rarity:?}, collection={collection:?}");
     }
     #[test]
     fn swipes_follow_the_three_field_pages_in_order() {

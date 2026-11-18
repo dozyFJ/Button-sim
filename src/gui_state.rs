@@ -8,7 +8,7 @@ pub enum PetAction {Delete(usize),Craft(usize),DeleteMany}
 #[derive(Clone,Default)]
 pub struct GuiState {
     pub panel:Panel,pub modal:Modal,pub profile_stats:bool,
-    pub search:String,pub pet_tab:usize,pub rarity:usize,pub selected_pet:Option<usize>,pub pending:Option<PetAction>,
+    pub pet_tab:usize,pub rarity:usize,pub selected_pet:Option<usize>,pub pending:Option<PetAction>,
     pub pet_multi_delete: bool,
     pub pet_marked: Vec<usize>,
     pub sidebar_scroll:f32,

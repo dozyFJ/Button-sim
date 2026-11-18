@@ -18,7 +18,8 @@ pub fn draw(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut G
         if state.selected_pet.is_none_or(|i| i >= game.pets.len()) {
             state.selected_pet = (!game.pets.is_empty()).then_some(0);
         }
-        let body = ui.available_rect_before_wrap();
+        let body = Rect::from_min_max(ui.available_rect_before_wrap().min,
+            sheet.max - vec2(10.0, 10.0));
         let left_width = (body.width() * 0.36).min(228.0);
         let left = Rect::from_min_size(body.min, vec2(left_width, body.height()));
         let right = Rect::from_min_max(pos2(left.right() + 10.0, body.top()), body.max);
@@ -36,10 +37,18 @@ pub fn draw(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut G
             });
         });
 
-        ui.allocate_ui_at_rect(right, |ui| {
-            ui.set_clip_rect(ui.clip_rect().intersect(right));
-            ui.set_width(right.width());
-            filters(ui, game, state);
+        let footer_top = (right.bottom() - 86.0).max(right.top());
+        let footer_rect = Rect::from_min_max(pos2(right.left(), footer_top), right.max);
+        let list = Rect::from_min_max(right.min, pos2(right.right(), footer_top - 5.0));
+        ui.allocate_ui_at_rect(footer_rect, |ui| {
+            ui.set_clip_rect(ui.clip_rect().intersect(footer_rect));
+            ui.set_width(footer_rect.width());
+            footer(ui, game, state);
+        });
+
+        ui.allocate_ui_at_rect(list, |ui| {
+            ui.set_clip_rect(ui.clip_rect().intersect(list));
+            ui.set_width(list.width());
             if state.pet_multi_delete {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(format!("Выбрано: {}", state.pet_marked.len()));
@@ -54,7 +63,7 @@ pub fn draw(ctx: &egui::Context, workspace: Rect, game: &mut Game, state: &mut G
                     }
                 });
             }
-            grid(ui, game, state);
+            grid(ui, game, state, list.width());
         });
     });
     confirm(ctx, workspace, game, state);
@@ -114,43 +123,43 @@ fn details(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, index: usiz
     });
 }
 
-fn filters(ui: &mut egui::Ui, game: &Game, state: &mut GuiState) {
+fn footer(ui: &mut egui::Ui, game: &Game, state: &mut GuiState) {
+    ui.separator();
     ui.horizontal_wrapped(|ui| {
-        ui.label(T::new(format!("Надето {}/3", game.equipped_pets.len())).strong());
-        ui.label(format!("Инвентарь {}/1000", game.pets.len()));
-        ui.add(egui::TextEdit::singleline(&mut state.search).hint_text("Имя или редкость").desired_width(130.0));
+        ui.label(T::new(format!("Надето {}/3", game.equipped_pets.len())).size(10.0).strong());
+        ui.label(T::new(format!("Инвентарь {}/1000", game.pets.len())).size(10.0));
     });
     ui.horizontal_wrapped(|ui| {
         for (i, title) in ["Инвентарь", "Надеты", "Крафт"].into_iter().enumerate() {
-            ui.selectable_value(&mut state.pet_tab, i, title);
+            ui.selectable_value(&mut state.pet_tab, i, T::new(title).size(11.0));
         }
-        let rarities = ["Все", "Обычные", "Редкие", "Эпические", "Легендарные"];
-        egui::ComboBox::from_id_salt("pet_rarity_filter").selected_text(rarities[state.rarity]).show_ui(ui, |ui| {
-            for (i, title) in rarities.into_iter().enumerate() { ui.selectable_value(&mut state.rarity, i, title); }
-        });
     });
-    ui.separator();
+    let rarities = ["Все редкости", "Обычные", "Редкие", "Эпические", "Легендарные"];
+    egui::ComboBox::from_id_salt("pet_rarity_filter").width(ui.available_width())
+        .selected_text(rarities[state.rarity]).show_ui(ui, |ui| {
+            for (i, title) in rarities.into_iter().enumerate() {
+                ui.selectable_value(&mut state.rarity, i, title);
+            }
+        });
 }
 
-fn grid(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState) {
-    let query = state.search.trim().to_lowercase();
+fn grid(ui: &mut egui::Ui, game: &mut Game, state: &mut GuiState, available_width: f32) {
     let filtered: Vec<_> = game.pets.iter().enumerate().filter_map(|(index, &pet)| {
         let rank = usize::from(pet.evolution_tier().min(4));
-        let matches = format!("{} {}", pet.name(), pet.rarity()).to_lowercase().contains(&query)
-            && (state.rarity == 0 || state.rarity == rank)
+        let matches = (state.rarity == 0 || state.rarity == rank)
             && (state.pet_tab != 1 || game.equipped_pets.contains(&index))
             && (state.pet_tab != 2 || Game::craft_result(pet).is_some());
         matches.then_some(index)
     }).collect();
     if filtered.is_empty() {
-        ui.label(if game.pets.is_empty() { "Нет питомцев. Открой яйцо." } else { "По запросу ничего не найдено." });
+        ui.label(if game.pets.is_empty() { "Нет питомцев. Открой яйцо." } else { "В этой категории нет питомцев." });
         if game.pets.is_empty() && ui.button("К яйцам").clicked() { state.close(); game.tab = Tab::Capsules; }
         return;
     }
-    let width = ui.available_width() - 10.0;
-    let columns = ((width / 90.0).floor() as usize).max(2);
+    let width = (available_width - 12.0).max(1.0);
+    let columns = ((width / 76.0).floor() as usize).max(1);
     let tile = (width - (columns - 1) as f32 * 4.0) / columns as f32;
-    egui::ScrollArea::vertical().id_salt("pet_slots").auto_shrink([false, false]).show_rows(ui, 94.0,
+    egui::ScrollArea::vertical().id_salt(("pet_slots", state.pet_tab, state.rarity)).max_width(available_width).auto_shrink([false, false]).show_rows(ui, 94.0,
         filtered.len().div_ceil(columns), |ui, rows| {
         for row in rows {
             ui.horizontal(|ui| {
